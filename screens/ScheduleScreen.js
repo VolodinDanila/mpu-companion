@@ -7,12 +7,21 @@ import {
     TouchableOpacity,
     FlatList,
     ActivityIndicator,
+    Alert,
 } from 'react-native';
+import { loadSettings, saveScheduleCache, loadScheduleCache, clearScheduleCache } from '../utils/storage';
+import {
+    fetchScheduleFromUniversity,
+    parseSchedule,
+    getScheduleForDay,
+} from '../api/schedule';
 
 export default function ScheduleScreen() {
     const [selectedDay, setSelectedDay] = useState(1);
     const [schedule, setSchedule] = useState([]);
+    const [fullSchedule, setFullSchedule] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [groupNumber, setGroupNumber] = useState('');
 
     const weekDays = [
         { id: 1, name: 'ПН', fullName: 'Понедельник' },
@@ -23,60 +32,95 @@ export default function ScheduleScreen() {
         { id: 6, name: 'СБ', fullName: 'Суббота' },
     ];
 
-    const mockScheduleData = {
-        1: [
-            {
-                id: '1-1',
-                time: '09:00-10:30',
-                subject: 'Математический анализ',
-                type: 'Лекция',
-                room: 'пр-123',
-                professor: 'Иванов И.И.',
-            },
-            {
-                id: '1-2',
-                time: '10:40-12:10',
-                subject: 'Программирование',
-                type: 'Практика',
-                room: 'пр-301',
-                professor: 'Петрова А.С.',
-            },
-        ],
-        2: [
-            {
-                id: '2-1',
-                time: '12:20-13:50',
-                subject: 'Физика',
-                type: 'Лекция',
-                room: 'пр-215',
-                professor: 'Сидоров П.П.',
-            },
-        ],
-        3: [],
-        4: [
-            {
-                id: '4-1',
-                time: '09:00-10:30',
-                subject: 'Английский язык',
-                type: 'Практика',
-                room: 'пк-401',
-                professor: 'Смирнова О.В.',
-            },
-        ],
-        5: [],
-        6: [],
-    };
+    useEffect(() => {
+        loadGroupNumber();
+    }, []);
 
     useEffect(() => {
-        loadSchedule();
-    }, [selectedDay]);
+        if (fullSchedule) {
+            updateScheduleForDay();
+        }
+    }, [selectedDay, fullSchedule]);
 
-    const loadSchedule = () => {
-        setLoading(true);
-        setTimeout(() => {
-            setSchedule(mockScheduleData[selectedDay] || []);
+    const loadGroupNumber = async () => {
+        try {
+            const settings = await loadSettings();
+            if (settings && settings.groupNumber) {
+                setGroupNumber(settings.groupNumber);
+                loadSchedule(settings.groupNumber);
+            } else {
+                setLoading(false);
+                Alert.alert(
+                    'Настройка группы',
+                    'Укажите номер группы в разделе "Настройки" для загрузки расписания',
+                    [{ text: 'OK' }]
+                );
+            }
+        } catch (error) {
+            console.error('ошибка загрузки настроек:', error);
             setLoading(false);
-        }, 300);
+        }
+    };
+
+    const loadSchedule = async (group) => {
+        setLoading(true);
+        try {
+            console.log(`📅 начинаю загрузку расписания для группы: ${group}`);
+
+            const cachedSchedule = await loadScheduleCache();
+            if (cachedSchedule) {
+                console.log('✅ расписание загружено из кэша');
+                setFullSchedule(cachedSchedule);
+                setLoading(false);
+                return;
+            }
+
+            console.log('🌐 загружаю расписание с сервера rasp.dmami.ru...');
+            const rawSchedule = await fetchScheduleFromUniversity(group);
+            console.log('📥 получены данные:', rawSchedule);
+
+            const parsed = parseSchedule(rawSchedule);
+            console.log('✅ расписание распарсено:', Object.keys(parsed).length, 'дней');
+
+            setFullSchedule(parsed);
+            await saveScheduleCache(parsed);
+            console.log('💾 расписание сохранено в кэш');
+
+            setLoading(false);
+        } catch (error) {
+            console.error('❌ ошибка загрузки расписания:', error);
+            setLoading(false);
+            Alert.alert(
+                'Ошибка загрузки расписания',
+                error.message || 'Не удалось загрузить расписание. Проверьте номер группы.',
+                [
+                    { text: 'Отмена', style: 'cancel' },
+                    { text: 'Повторить', onPress: () => loadSchedule(group) }
+                ]
+            );
+        }
+    };
+
+    const updateScheduleForDay = () => {
+        if (!fullSchedule) {
+            setSchedule([]);
+            return;
+        }
+
+        const daySchedule = getScheduleForDay(fullSchedule, selectedDay);
+        setSchedule(daySchedule || []);
+    };
+
+    const refreshSchedule = async () => {
+        if (!groupNumber) {
+            Alert.alert('Ошибка', 'Укажите номер группы в настройках');
+            return;
+        }
+
+        console.log('🗑️ очистка кэша расписания...');
+        await clearScheduleCache();
+        console.log('🔄 загрузка свежего расписания...');
+        loadSchedule(groupNumber);
     };
 
     const renderClassItem = ({ item }) => (
@@ -155,6 +199,16 @@ export default function ScheduleScreen() {
                     </Text>
                 </View>
             )}
+
+            <TouchableOpacity
+                style={styles.updateButton}
+                onPress={refreshSchedule}
+                disabled={!groupNumber}
+            >
+                <Text style={styles.updateButtonText}>
+                    {groupNumber ? '🔄 Обновить расписание' : 'Укажите группу в настройках'}
+                </Text>
+            </TouchableOpacity>
         </View>
     );
 }
@@ -288,5 +342,19 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#999',
         textAlign: 'center',
+    },
+    updateButton: {
+        backgroundColor: '#fff',
+        margin: 15,
+        padding: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#007AFF',
+    },
+    updateButtonText: {
+        color: '#007AFF',
+        fontSize: 16,
+        fontWeight: '600',
     },
 });
