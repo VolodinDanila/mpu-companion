@@ -1,30 +1,64 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { StyleSheet } from 'react-native';
+
+import HomeScreen from './screens/HomeScreen';
+import ScheduleScreen from './screens/ScheduleScreen';
+import SettingsScreen from './screens/SettingsScreen';
+
+const Tab = createBottomTabNavigator();
 
 export default function App() {
     return (
-        <View style={styles.container}>
-            <Text style={styles.title}>MPUCompanion</Text>
-            <Text style={styles.subtitle}>student companion app</Text>
-        </View>
+        <NavigationContainer>
+            <Tab.Navigator
+                screenOptions={{
+                    tabBarActiveTintColor: '#007AFF',
+                    tabBarInactiveTintColor: 'gray',
+                    tabBarStyle: styles.tabBar,
+                    headerStyle: styles.header,
+                    headerTintColor: '#fff',
+                }}
+            >
+                <Tab.Screen
+                    name="главная"
+                    component={HomeScreen}
+                    options={{
+                        tabBarLabel: 'главная',
+                    }}
+                />
+
+                <Tab.Screen
+                    name="расписание"
+                    component={ScheduleScreen}
+                    options={{
+                        tabBarLabel: 'расписание',
+                    }}
+                />
+
+                <Tab.Screen
+                    name="настройки"
+                    component={SettingsScreen}
+                    options={{
+                        tabBarLabel: 'настройки',
+                    }}
+                />
+            </Tab.Navigator>
+        </NavigationContainer>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f5f5f5',
-        alignItems: 'center',
-        justifyContent: 'center',
+    tabBar: {
+        backgroundColor: '#fff',
+        borderTopWidth: 1,
+        borderTopColor: '#e0e0e0',
+        height: 60,
+        paddingBottom: 8,
+        paddingTop: 8,
     },
-    title: {
-        fontSize: 32,
-        fontWeight: 'bold',
-        color: '#007AFF',
-        marginBottom: 10,
-    },
-    subtitle: {
-        fontSize: 16,
-        color: '#666',
+    header: {
+        backgroundColor: '#007AFF',
     },
 });
