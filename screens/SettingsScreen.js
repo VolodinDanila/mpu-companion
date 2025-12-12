@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -7,7 +7,9 @@ import {
     TextInput,
     TouchableOpacity,
     Alert,
+    ActivityIndicator,
 } from 'react-native';
+import { saveSettings, loadSettings } from '../utils/storage';
 
 export default function SettingsScreen() {
     const [morningRoutine, setMorningRoutine] = useState('60');
@@ -21,8 +23,42 @@ export default function SettingsScreen() {
     ]);
     const [transportType, setTransportType] = useState('public');
     const [extraTime, setExtraTime] = useState('10');
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
 
-    const handleSaveSettings = () => {
+    useEffect(() => {
+        loadSettingsFromStorage();
+    }, []);
+
+    const loadSettingsFromStorage = async () => {
+        setLoading(true);
+        const savedSettings = await loadSettings();
+
+        if (savedSettings) {
+            setMorningRoutine(savedSettings.morningRoutine || '60');
+            setHomeAddress(savedSettings.homeAddress || '');
+            setGroupNumber(savedSettings.groupNumber || '');
+
+            if (savedSettings.campusAddresses && Array.isArray(savedSettings.campusAddresses)) {
+                const migratedCampuses = savedSettings.campusAddresses.map(campus => ({
+                    ...campus,
+                    duration: campus.duration || ''
+                }));
+                setCampusAddresses(migratedCampuses);
+            }
+
+            setTransportType(savedSettings.transportType || 'public');
+            setExtraTime(savedSettings.extraTime || '10');
+
+            console.log('📱 настройки загружены:', savedSettings);
+        } else {
+            console.log('📱 нет сохранённых настроек, используются значения по умолчанию');
+        }
+
+        setLoading(false);
+    };
+
+    const handleSaveSettings = async () => {
         if (!homeAddress.trim()) {
             Alert.alert('Ошибка', 'Укажите домашний адрес');
             return;
@@ -34,7 +70,43 @@ export default function SettingsScreen() {
             return;
         }
 
-        Alert.alert('Успех', 'Настройки сохранены');
+        if (!morningRoutine || isNaN(morningRoutine) || parseInt(morningRoutine) < 1) {
+            Alert.alert('Ошибка', 'Укажите корректное время утренней рутины (минимум 1 минута)');
+            return;
+        }
+
+        if (!extraTime || isNaN(extraTime) || parseInt(extraTime) < 0) {
+            Alert.alert('Ошибка', 'Укажите корректное дополнительное время');
+            return;
+        }
+
+        setSaving(true);
+
+        const settings = {
+            morningRoutine,
+            homeAddress,
+            groupNumber,
+            campusAddresses,
+            transportType,
+            extraTime,
+            updatedAt: new Date().toISOString(),
+        };
+
+        console.log('💾 сохраняю настройки:', settings);
+
+        const success = await saveSettings(settings);
+
+        setSaving(false);
+
+        if (success) {
+            Alert.alert(
+                'Успех',
+                'Настройки сохранены',
+                [{ text: 'OK' }]
+            );
+        } else {
+            Alert.alert('Ошибка', 'Не удалось сохранить настройки');
+        }
     };
 
     const renderTransportButton = (type, label, emoji) => (
@@ -57,6 +129,15 @@ export default function SettingsScreen() {
             </Text>
         </TouchableOpacity>
     );
+
+    if (loading) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text style={styles.loadingText}>Загрузка настроек...</Text>
+            </View>
+        );
+    }
 
     return (
         <ScrollView style={styles.container}>
@@ -182,10 +263,15 @@ export default function SettingsScreen() {
             </View>
 
             <TouchableOpacity
-                style={styles.saveButton}
+                style={[styles.saveButton, saving && styles.saveButtonDisabled]}
                 onPress={handleSaveSettings}
+                disabled={saving}
             >
-                <Text style={styles.saveButtonText}>Сохранить настройки</Text>
+                {saving ? (
+                    <ActivityIndicator color="#fff" />
+                ) : (
+                    <Text style={styles.saveButtonText}>Сохранить настройки</Text>
+                )}
             </TouchableOpacity>
 
             <View style={styles.infoBox}>
@@ -202,6 +288,17 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f5f5f5',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5',
+    },
+    loadingText: {
+        marginTop: 10,
+        fontSize: 14,
+        color: '#666',
     },
     section: {
         backgroundColor: '#fff',
@@ -364,6 +461,9 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 5,
     },
+    saveButtonDisabled: {
+        opacity: 0.6,
+    },
     saveButtonText: {
         color: '#fff',
         fontSize: 17,
@@ -384,4 +484,4 @@ const styles = StyleSheet.create({
         color: '#8B7500',
         lineHeight: 20,
     },
-}); 
+});
