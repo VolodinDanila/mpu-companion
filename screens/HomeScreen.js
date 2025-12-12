@@ -7,49 +7,111 @@ import {
     TouchableOpacity,
     ActivityIndicator,
 } from 'react-native';
+import { loadSettings, loadScheduleCache, loadRouteData } from '../utils/storage';
+import { fetchWeatherByCity, getMockWeatherData, getWeatherRecommendations } from '../api/weather';
+import { getNextClass } from '../api/schedule';
+import { calculateAlarm, getTimeUntilAlarm } from '../utils/alarmCalculator';
 
 export default function HomeScreen() {
-    const [loading, setLoading] = useState(true);
     const [nextAlarm, setNextAlarm] = useState(null);
     const [weather, setWeather] = useState(null);
     const [recommendations, setRecommendations] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         loadData();
     }, []);
 
-    const loadData = () => {
+    useEffect(() => {
+        const interval = setInterval(() => {
+            loadData();
+        }, 60000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    const loadData = async () => {
         setLoading(true);
-
-        setTimeout(() => {
-            setNextAlarm({
-                time: '07:30',
-                date: 'Завтра',
-                classTime: '09:00',
-                className: 'Математический анализ',
-                breakdown: {
-                    morningRoutine: 60,
-                    travelTime: 45,
-                    extraTime: 15,
-                },
-            });
-
-            setWeather({
-                temperature: 15,
-                feelsLike: 13,
-                condition: 'Облачно с прояснениями',
-                humidity: 65,
-                windSpeed: 5,
-            });
-
-            setRecommendations([
-                'Оденьтесь теплее — +15°C',
-                'Будильник через 14ч 25мин',
-                'Хорошая погода для прогулки',
-            ]);
-
+        try {
+            const settings = await loadSettings();
+            await loadWeatherData(settings);
+            await loadAlarmData(settings);
             setLoading(false);
-        }, 500);
+        } catch (error) {
+            console.error('ошибка загрузки данных:', error);
+            setLoading(false);
+        }
+    };
+
+    const loadAlarmData = async (settings) => {
+        try {
+            const schedule = await loadScheduleCache();
+            if (!schedule) {
+                console.log('нет расписания в кэше');
+                setNextAlarm(null);
+                return;
+            }
+
+            const nextClassData = getNextClass(schedule);
+            if (!nextClassData) {
+                console.log('нет следующего занятия');
+                setNextAlarm(null);
+                return;
+            }
+
+            const route = await loadRouteData();
+            const alarm = calculateAlarm(nextClassData, settings, route);
+
+            if (alarm) {
+                setNextAlarm(alarm);
+
+                const timeUntil = getTimeUntilAlarm(alarm.fullDate);
+                if (timeUntil && settings?.weatherNotifications) {
+                    setRecommendations(prev => {
+                        const newRecs = [...prev];
+                        if (timeUntil.hours < 12) {
+                            newRecs.unshift(`Будильник через ${timeUntil.formatted}`);
+                        }
+                        return newRecs;
+                    });
+                }
+            } else {
+                setNextAlarm(null);
+            }
+        } catch (error) {
+            console.error('ошибка расчёта будильника:', error);
+            setNextAlarm(null);
+        }
+    };
+
+    const loadWeatherData = async (settings) => {
+        try {
+            let weatherData;
+
+            if (settings?.homeAddress) {
+                try {
+                    const city = settings.homeAddress.split(',')[0].trim();
+                    console.log(`🌤️ загружаю погоду для: ${city}`);
+                    weatherData = await fetchWeatherByCity(city);
+                } catch (apiError) {
+                    console.log('⚠️ используются mock данные погоды');
+                    weatherData = getMockWeatherData();
+                }
+            } else {
+                console.log('ℹ️ адрес не указан, используются mock данные');
+                weatherData = getMockWeatherData();
+            }
+
+            setWeather(weatherData);
+            const weatherRecs = getWeatherRecommendations(weatherData);
+            setRecommendations(weatherRecs);
+
+        } catch (error) {
+            console.error('❌ критическая ошибка загрузки погоды:', error);
+            const mockWeather = getMockWeatherData();
+            setWeather(mockWeather);
+            setRecommendations(getWeatherRecommendations(mockWeather));
+        }
     };
 
     if (loading) {
@@ -95,7 +157,8 @@ export default function HomeScreen() {
                     </View>
                 ) : (
                     <Text style={styles.noDataText}>
-                        Нет запланированных занятий
+                        Нет запланированных занятий.{'\n'}
+                        Добавьте расписание в настройках.
                     </Text>
                 )}
             </View>
