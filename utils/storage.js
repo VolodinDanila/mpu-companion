@@ -8,6 +8,86 @@ const KEYS = {
     CUSTOM_LESSONS: 'custom_lessons',
 };
 
+const ADDRESSES_KEY = 'addresses';
+
+const PREDEFINED_ADDRESSES = {
+    campuses: [
+        { id: 'bs', code: 'БС', name: 'Большая Семёновская', address: 'ул. Б. Семёновская, д. 38', type: 'campus' },
+        { id: 'pk', code: 'ПК', name: 'Павла Корчагина', address: 'ул. Павла Корчагина, д. 22', type: 'campus' },
+        { id: 'pr', code: 'ПР', name: 'Прянишникова', address: 'ул. Прянишникова, 2А', type: 'campus' },
+        { id: 'av', code: 'АВ', name: 'Автозаводская', address: 'ул. Автозаводская, д. 16', type: 'campus' },
+        { id: 'm', code: 'М', name: 'Михалковская', address: 'ул. Михалковская, д. 7', type: 'campus' },
+    ],
+    dorms: [
+        { id: 'dorm1', code: '№1', name: 'Общежитие №1', address: 'ул. Малая Семёновская, д. 12', type: 'dorm' },
+        { id: 'dorm2', code: '№2', name: 'Общежитие №2', address: 'ул. 7-я Парковая, д. 9/26', type: 'dorm' },
+        { id: 'dorm3', code: '№3', name: 'Общежитие №3', address: 'ул. 1-я Дубровская, д. 16А, стр. 2', type: 'dorm' },
+        { id: 'dorm4', code: '№4', name: 'Общежитие №4', address: 'ул. 800-летия Москвы, д. 28', type: 'dorm' },
+        { id: 'dorm5', code: '№5', name: 'Общежитие №5', address: 'ул. Михалковская, д. 7, корп. 3', type: 'dorm' },
+        { id: 'dorm6', code: '№6', name: 'Общежитие №6', address: 'ул. Б. Галушкина, д. 9', type: 'dorm' },
+        { id: 'dorm7', code: '№7', name: 'Общежитие №7', address: 'ул. Павла Корчагина, д. 20А, к. 3', type: 'dorm' },
+        { id: 'dorm8', code: '№8', name: 'Общежитие №8', address: 'Рижский проезд, д. 15, к. 2', type: 'dorm' },
+        { id: 'dorm9', code: '№9', name: 'Общежитие №9', address: 'Рижский проезд, д. 15, к. 1', type: 'dorm' },
+        { id: 'dorm10', code: '№10', name: 'Общежитие №10', address: '1-й Балтийский переулок, д. 6/21 корп. 3', type: 'dorm' },
+        { id: 'dorm11', code: '№11', name: 'Общежитие №11', address: 'ул. Павла Корчагина, д. 22А, к. 2', type: 'dorm' },
+    ],
+};
+
+export const loadAddresses = async () => {
+    try {
+        const customAddresses = await AsyncStorage.getItem(ADDRESSES_KEY);
+        return {
+            predefined: PREDEFINED_ADDRESSES,
+            custom: customAddresses ? JSON.parse(customAddresses) : [],
+        };
+    } catch (error) {
+        console.error('ошибка загрузки адресов:', error);
+        return {
+            predefined: PREDEFINED_ADDRESSES,
+            custom: [],
+        };
+    }
+};
+
+export const saveCustomAddress = async (address) => {
+    try {
+        const addresses = await loadAddresses();
+        const newAddress = {
+            id: Date.now().toString(),
+            name: address.name,
+            address: address.address,
+            type: 'custom',
+            createdAt: new Date().toISOString(),
+        };
+        addresses.custom.push(newAddress);
+        await AsyncStorage.setItem(ADDRESSES_KEY, JSON.stringify(addresses.custom));
+        return newAddress;
+    } catch (error) {
+        console.error('ошибка сохранения адреса:', error);
+        throw error;
+    }
+};
+
+export const deleteCustomAddress = async (id) => {
+    try {
+        const addresses = await loadAddresses();
+        addresses.custom = addresses.custom.filter(addr => addr.id !== id);
+        await AsyncStorage.setItem(ADDRESSES_KEY, JSON.stringify(addresses.custom));
+    } catch (error) {
+        console.error('ошибка удаления адреса:', error);
+        throw error;
+    }
+};
+
+export const getAllAddressesList = async () => {
+    const addresses = await loadAddresses();
+    return [
+        ...addresses.predefined.campuses,
+        ...addresses.predefined.dorms,
+        ...addresses.custom,
+    ];
+};
+
 export const saveSettings = async (settings) => {
     try {
         await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
@@ -233,24 +313,22 @@ export const addCustomLesson = async (lesson) => {
     }
 };
 
-export const updateCustomLesson = async (id, updates) => {
+export const updateCustomLesson = async (id, lessonData) => {
     try {
         const lessons = await loadCustomLessons();
-        const index = lessons.findIndex(l => l.id === id);
+        const index = lessons.findIndex(lesson => lesson.id === id);
+
         if (index !== -1) {
             lessons[index] = {
                 ...lessons[index],
-                ...updates,
+                ...lessonData,
                 updatedAt: new Date().toISOString(),
             };
-            await saveCustomLessons(lessons);
-            console.log('✅ занятие обновлено:', lessons[index].subject);
-            return lessons[index];
+            await AsyncStorage.setItem(CUSTOM_LESSONS_KEY, JSON.stringify(lessons));
         }
-        return null;
     } catch (error) {
-        console.error('❌ ошибка обновления занятия:', error);
-        return null;
+        console.error('Ошибка обновления кастомного занятия:', error);
+        throw error;
     }
 };
 

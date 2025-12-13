@@ -10,8 +10,9 @@ import {
     Modal,
     TextInput,
     ScrollView,
+    Linking,
 } from 'react-native';
-import { loadSettings, saveScheduleCache, loadScheduleCache, clearScheduleCache, loadCustomLessons, addCustomLesson, deleteCustomLesson } from '../utils/storage';
+import { loadSettings, saveScheduleCache, loadScheduleCache, clearScheduleCache, loadCustomLessons, addCustomLesson, deleteCustomLesson, getAllAddressesList } from '../utils/storage';
 import {
     fetchScheduleFromUniversity,
     parseSchedule,
@@ -26,12 +27,17 @@ export default function ScheduleScreen() {
     const [loading, setLoading] = useState(true);
     const [groupNumber, setGroupNumber] = useState('');
     const [modalVisible, setModalVisible] = useState(false);
+    const [addressPickerVisible, setAddressPickerVisible] = useState(false);
 
     const [customSubject, setCustomSubject] = useState('');
     const [customType, setCustomType] = useState('');
     const [customRoom, setCustomRoom] = useState('');
     const [customProfessor, setCustomProfessor] = useState('');
     const [customLessonNumber, setCustomLessonNumber] = useState('');
+    const [selectedAddress, setSelectedAddress] = useState(null);
+    const [addresses, setAddresses] = useState([]);
+    const [homeAddress, setHomeAddress] = useState('');
+    const [transportMode, setTransportMode] = useState('transit');
 
     const weekDays = [
         { id: 1, name: 'ПН', fullName: 'Понедельник' },
@@ -55,6 +61,7 @@ export default function ScheduleScreen() {
     useEffect(() => {
         loadGroupNumber();
         loadCustomLessonsData();
+        loadHomeAddress();
     }, []);
 
     useEffect(() => {
@@ -78,8 +85,24 @@ export default function ScheduleScreen() {
                 );
             }
         } catch (error) {
-            console.error('ошибка загрузки настроек:', error);
+            console.error('Ошибка загрузки настроек:', error);
             setLoading(false);
+        }
+    };
+
+    const loadHomeAddress = async () => {
+        try {
+            const settings = await loadSettings();
+            if (settings) {
+                if (settings.homeAddress) {
+                    setHomeAddress(settings.homeAddress);
+                }
+                if (settings.transportMode) {
+                    setTransportMode(settings.transportMode);
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки настроек:', error);
         }
     };
 
@@ -88,37 +111,46 @@ export default function ScheduleScreen() {
             const data = await loadCustomLessons();
             setCustomLessons(data || []);
         } catch (error) {
-            console.error('ошибка загрузки кастомных занятий:', error);
+            console.error('Ошибка загрузки кастомных занятий:', error);
+        }
+    };
+
+    const loadAddressesList = async () => {
+        try {
+            const list = await getAllAddressesList();
+            setAddresses(list);
+        } catch (error) {
+            console.error('Ошибка загрузки адресов:', error);
         }
     };
 
     const loadSchedule = async (group) => {
         setLoading(true);
         try {
-            console.log(`📅 начинаю загрузку расписания для группы: ${group}`);
+            console.log(`📅 Начинаю загрузку расписания для группы: ${group}`);
 
             const cachedSchedule = await loadScheduleCache();
             if (cachedSchedule) {
-                console.log('✅ расписание загружено из кэша');
+                console.log('✅ Расписание загружено из кэша');
                 setFullSchedule(cachedSchedule);
                 setLoading(false);
                 return;
             }
 
-            console.log('🌐 загружаю расписание с сервера rasp.dmami.ru...');
+            console.log('🌐 Загружаю расписание с сервера rasp.dmami.ru...');
             const rawSchedule = await fetchScheduleFromUniversity(group);
-            console.log('📥 получены данные:', rawSchedule);
+            console.log('📥 Получены данные:', rawSchedule);
 
             const parsed = parseSchedule(rawSchedule);
-            console.log('✅ расписание распарсено:', Object.keys(parsed).length, 'дней');
+            console.log('✅ Расписание распарсено:', Object.keys(parsed).length, 'дней');
 
             setFullSchedule(parsed);
             await saveScheduleCache(parsed);
-            console.log('💾 расписание сохранено в кэш');
+            console.log('💾 Расписание сохранено в кэш');
 
             setLoading(false);
         } catch (error) {
-            console.error('❌ ошибка загрузки расписания:', error);
+            console.error('❌ Ошибка загрузки расписания:', error);
             setLoading(false);
             Alert.alert(
                 'Ошибка загрузки расписания',
@@ -152,12 +184,13 @@ export default function ScheduleScreen() {
                 lessonNumber: custom.lessonNumber,
                 isCustom: true,
                 originalId: custom.id,
+                addressId: custom.addressId,
             });
         });
 
         daySchedule.sort((a, b) => a.lessonNumber - b.lessonNumber);
 
-        console.log(`📋 обновление расписания для дня ${selectedDay}:`, daySchedule.length, 'занятий');
+        console.log(`📋 Обновление расписания для дня ${selectedDay}:`, daySchedule.length, 'занятий');
         setSchedule(daySchedule);
     };
 
@@ -167,18 +200,20 @@ export default function ScheduleScreen() {
             return;
         }
 
-        console.log('🗑️ очистка кэша расписания...');
+        console.log('🗑️ Очистка кэша расписания...');
         await clearScheduleCache();
-        console.log('🔄 загрузка свежего расписания...');
+        console.log('🔄 Загрузка свежего расписания...');
         loadSchedule(groupNumber);
     };
 
-    const openCustomLessonModal = () => {
+    const openCustomLessonModal = async () => {
+        await loadAddressesList();
         setCustomSubject('');
         setCustomType('Лекция');
         setCustomRoom('');
         setCustomProfessor('');
         setCustomLessonNumber('1');
+        setSelectedAddress(null);
         setModalVisible(true);
     };
 
@@ -188,13 +223,13 @@ export default function ScheduleScreen() {
 
     const handleSaveCustomLesson = async () => {
         if (!customSubject.trim()) {
-            Alert.alert('ошибка', 'введите название предмета');
+            Alert.alert('Ошибка', 'Введите название предмета');
             return;
         }
 
         const lessonNum = parseInt(customLessonNumber, 10);
         if (isNaN(lessonNum) || lessonNum < 1 || lessonNum > 7) {
-            Alert.alert('ошибка', 'номер пары должен быть от 1 до 7');
+            Alert.alert('Ошибка', 'Номер пары должен быть от 1 до 7');
             return;
         }
 
@@ -202,30 +237,31 @@ export default function ScheduleScreen() {
             const lessonData = {
                 subject: customSubject.trim(),
                 type: customType.trim() || 'Занятие',
-                room: customRoom.trim() || 'не указана',
-                professor: customProfessor.trim() || 'не указан',
+                room: customRoom.trim() || 'Не указана',
+                professor: customProfessor.trim() || 'Не указан',
                 lessonNumber: lessonNum,
                 dayNumber: selectedDay,
+                addressId: selectedAddress?.id || null,
             };
 
             await addCustomLesson(lessonData);
             await loadCustomLessonsData();
             closeModal();
-            Alert.alert('успешно', 'занятие добавлено в расписание');
+            Alert.alert('Успешно', 'Занятие добавлено в расписание');
         } catch (error) {
-            console.error('ошибка сохранения занятия:', error);
-            Alert.alert('ошибка', 'не удалось добавить занятие');
+            console.error('Ошибка сохранения занятия:', error);
+            Alert.alert('Ошибка', 'Не удалось добавить занятие');
         }
     };
 
     const handleDeleteCustomLesson = (lesson) => {
         Alert.alert(
-            'удалить занятие?',
-            `вы уверены что хотите удалить "${lesson.subject}"?`,
+            'Удалить занятие?',
+            `Вы уверены что хотите удалить "${lesson.subject}"?`,
             [
-                { text: 'отмена', style: 'cancel' },
+                { text: 'Отмена', style: 'cancel' },
                 {
-                    text: 'удалить',
+                    text: 'Удалить',
                     style: 'destructive',
                     onPress: async () => {
                         try {
@@ -233,8 +269,8 @@ export default function ScheduleScreen() {
                             await deleteCustomLesson(idToDelete);
                             await loadCustomLessonsData();
                         } catch (error) {
-                            console.error('ошибка удаления занятия:', error);
-                            Alert.alert('ошибка', 'не удалось удалить занятие');
+                            console.error('Ошибка удаления занятия:', error);
+                            Alert.alert('Ошибка', 'Не удалось удалить занятие');
                         }
                     },
                 },
@@ -242,39 +278,103 @@ export default function ScheduleScreen() {
         );
     };
 
-    const renderClassItem = ({ item }) => (
-        <TouchableOpacity
-            style={styles.classCard}
-            onLongPress={() => item.isCustom ? handleDeleteCustomLesson(item) : null}
-        >
-            <View style={styles.timeContainer}>
-                <Text style={styles.timeText}>{item.time}</Text>
-            </View>
+    const handleLessonClick = async (item) => {
+        // только кастомные занятия с адресом открывают маршрут
+        if (!item.isCustom || !item.addressId) {
+            return;
+        }
 
-            <View style={styles.classInfo}>
-                <View style={styles.subjectRow}>
-                    <Text style={styles.subjectText}>{item.subject}</Text>
-                    {item.isCustom && (
-                        <View style={styles.customBadge}>
-                            <Text style={styles.customBadgeText}>своё</Text>
+        if (!homeAddress) {
+            Alert.alert('Ошибка', 'Укажите домашний адрес в настройках');
+            return;
+        }
+
+        const address = addresses.length > 0
+            ? addresses.find(a => a.id === item.addressId)
+            : null;
+
+        if (!address) {
+            await loadAddressesList();
+            const addr = addresses.find(a => a.id === item.addressId);
+            if (!addr) {
+                Alert.alert('Ошибка', 'Адрес не найден');
+                return;
+            }
+            openYandexMaps(homeAddress, addr.address);
+        } else {
+            openYandexMaps(homeAddress, address.address);
+        }
+    };
+
+    const openYandexMaps = async (from, to) => {
+        const routeType = transportMode === 'auto' ? 'auto'
+            : transportMode === 'pedestrian' ? 'pd'
+                : 'mt';
+
+        const url = `https://yandex.ru/maps/?rtext=${encodeURIComponent(from)}~${encodeURIComponent(to)}&rtt=${routeType}`;
+
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+            await Linking.openURL(url);
+        } else {
+            Alert.alert('Ошибка', 'Не удалось открыть Яндекс.Карты');
+        }
+    };
+
+    const openAddressPicker = () => {
+        setAddressPickerVisible(true);
+    };
+
+    const selectAddress = (address) => {
+        setSelectedAddress(address);
+        setAddressPickerVisible(false);
+    };
+
+    const renderClassItem = ({ item }) => {
+        const address = item.addressId ? addresses.find(a => a.id === item.addressId) : null;
+
+        return (
+            <TouchableOpacity
+                style={styles.classCard}
+                onPress={() => handleLessonClick(item)}
+                onLongPress={() => item.isCustom ? handleDeleteCustomLesson(item) : null}
+            >
+                <View style={styles.timeContainer}>
+                    <Text style={styles.timeText}>{item.time}</Text>
+                </View>
+
+                <View style={styles.classInfo}>
+                    <View style={styles.subjectRow}>
+                        <Text style={styles.subjectText}>{item.subject}</Text>
+                        {item.isCustom && (
+                            <View style={styles.customBadge}>
+                                <Text style={styles.customBadgeText}>Своё</Text>
+                            </View>
+                        )}
+                    </View>
+                    <View style={styles.detailsRow}>
+                        <View style={[styles.typeBadge, item.isCustom && styles.typeBadgeCustom]}>
+                            <Text style={[styles.typeText, item.isCustom && styles.typeTextCustom]}>
+                                {item.type}
+                            </Text>
                         </View>
+                        <Text style={styles.roomText}>{item.room}</Text>
+                    </View>
+                    <Text style={styles.professorText}>{item.professor}</Text>
+                    {address && (
+                        <Text style={styles.lessonAddress}>
+                            📍 {address.code ? `${address.code} — ${address.name}` : address.name}
+                        </Text>
+                    )}
+                    {item.isCustom && (
+                        <Text style={styles.customHint}>
+                            {address ? 'Нажмите для маршрута • ' : ''}Удержите для удаления
+                        </Text>
                     )}
                 </View>
-                <View style={styles.detailsRow}>
-                    <View style={[styles.typeBadge, item.isCustom && styles.typeBadgeCustom]}>
-                        <Text style={[styles.typeText, item.isCustom && styles.typeTextCustom]}>
-                            {item.type}
-                        </Text>
-                    </View>
-                    <Text style={styles.roomText}>{item.room}</Text>
-                </View>
-                <Text style={styles.professorText}>{item.professor}</Text>
-                {item.isCustom && (
-                    <Text style={styles.customHint}>удержите для удаления</Text>
-                )}
-            </View>
-        </TouchableOpacity>
-    );
+            </TouchableOpacity>
+        );
+    };
 
     const renderDayButton = (day) => (
         <TouchableOpacity
@@ -335,7 +435,7 @@ export default function ScheduleScreen() {
                     style={styles.addCustomButton}
                     onPress={openCustomLessonModal}
                 >
-                    <Text style={styles.addCustomButtonText}>+ добавить своё занятие</Text>
+                    <Text style={styles.addCustomButtonText}>+ Добавить своё занятие</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -344,7 +444,7 @@ export default function ScheduleScreen() {
                     disabled={!groupNumber}
                 >
                     <Text style={styles.updateButtonText}>
-                        {groupNumber ? '🔄' : 'укажите группу'}
+                        {groupNumber ? '🔄' : 'Укажите группу'}
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -358,30 +458,30 @@ export default function ScheduleScreen() {
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <ScrollView>
-                            <Text style={styles.modalTitle}>добавить своё занятие</Text>
+                            <Text style={styles.modalTitle}>Добавить своё занятие</Text>
                             <Text style={styles.modalSubtitle}>
-                                день: {weekDays.find(d => d.id === selectedDay)?.fullName}
+                                День: {weekDays.find(d => d.id === selectedDay)?.fullName}
                             </Text>
 
-                            <Text style={styles.inputLabel}>название предмета *</Text>
+                            <Text style={styles.inputLabel}>Название предмета *</Text>
                             <TextInput
                                 style={styles.input}
                                 value={customSubject}
                                 onChangeText={setCustomSubject}
-                                placeholder="например: консультация по диплому"
+                                placeholder="Например: Консультация по диплому"
                                 placeholderTextColor="#999"
                             />
 
-                            <Text style={styles.inputLabel}>тип занятия</Text>
+                            <Text style={styles.inputLabel}>Тип занятия</Text>
                             <TextInput
                                 style={styles.input}
                                 value={customType}
                                 onChangeText={setCustomType}
-                                placeholder="лекция / практика / консультация"
+                                placeholder="Лекция / Практика / Консультация"
                                 placeholderTextColor="#999"
                             />
 
-                            <Text style={styles.inputLabel}>номер пары * (1-7)</Text>
+                            <Text style={styles.inputLabel}>Номер пары * (1-7)</Text>
                             <TextInput
                                 style={styles.input}
                                 value={customLessonNumber}
@@ -391,7 +491,7 @@ export default function ScheduleScreen() {
                                 keyboardType="numeric"
                             />
 
-                            <Text style={styles.inputLabel}>аудитория</Text>
+                            <Text style={styles.inputLabel}>Аудитория</Text>
                             <TextInput
                                 style={styles.input}
                                 value={customRoom}
@@ -400,7 +500,7 @@ export default function ScheduleScreen() {
                                 placeholderTextColor="#999"
                             />
 
-                            <Text style={styles.inputLabel}>преподаватель</Text>
+                            <Text style={styles.inputLabel}>Преподаватель</Text>
                             <TextInput
                                 style={styles.input}
                                 value={customProfessor}
@@ -409,22 +509,75 @@ export default function ScheduleScreen() {
                                 placeholderTextColor="#999"
                             />
 
+                            <Text style={styles.inputLabel}>Место (опционально)</Text>
+                            <TouchableOpacity
+                                style={styles.addressPicker}
+                                onPress={openAddressPicker}
+                            >
+                                <Text style={styles.addressPickerText}>
+                                    {selectedAddress
+                                        ? (selectedAddress.code ? `${selectedAddress.code} — ${selectedAddress.name}` : selectedAddress.name)
+                                        : '📍 Выбрать адрес'}
+                                </Text>
+                            </TouchableOpacity>
+                            {selectedAddress && (
+                                <TouchableOpacity
+                                    onPress={() => setSelectedAddress(null)}
+                                    style={styles.clearAddressButton}
+                                >
+                                    <Text style={styles.clearAddressButtonText}>✕ Убрать адрес</Text>
+                                </TouchableOpacity>
+                            )}
+
                             <View style={styles.modalButtons}>
                                 <TouchableOpacity
                                     style={[styles.modalButton, styles.cancelButton]}
                                     onPress={closeModal}
                                 >
-                                    <Text style={styles.cancelButtonText}>отмена</Text>
+                                    <Text style={styles.cancelButtonText}>Отмена</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
                                     style={[styles.modalButton, styles.saveButton]}
                                     onPress={handleSaveCustomLesson}
                                 >
-                                    <Text style={styles.saveButtonText}>добавить</Text>
+                                    <Text style={styles.saveButtonText}>Добавить</Text>
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal
+                visible={addressPickerVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setAddressPickerVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.pickerModalContent}>
+                        <Text style={styles.pickerTitle}>Выберите адрес</Text>
+                        <ScrollView style={styles.addressList}>
+                            {addresses.map(addr => (
+                                <TouchableOpacity
+                                    key={addr.id}
+                                    style={styles.addressOption}
+                                    onPress={() => selectAddress(addr)}
+                                >
+                                    <Text style={styles.addressOptionName}>
+                                        {addr.code ? `${addr.code} — ${addr.name}` : addr.name}
+                                    </Text>
+                                    <Text style={styles.addressOptionValue}>{addr.address}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                        <TouchableOpacity
+                            style={styles.closePickerButton}
+                            onPress={() => setAddressPickerVisible(false)}
+                        >
+                            <Text style={styles.closePickerButtonText}>Закрыть</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
@@ -569,6 +722,11 @@ const styles = StyleSheet.create({
         color: '#999',
         marginTop: 3,
     },
+    lessonAddress: {
+        fontSize: 13,
+        color: '#666',
+        marginTop: 4,
+    },
     customHint: {
         fontSize: 11,
         color: '#FF9500',
@@ -642,7 +800,7 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         padding: 20,
-        maxHeight: '80%',
+        maxHeight: '85%',
     },
     modalTitle: {
         fontSize: 22,
@@ -671,6 +829,25 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#e0e0e0',
     },
+    addressPicker: {
+        backgroundColor: '#f8f8f8',
+        borderRadius: 10,
+        padding: 14,
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+    },
+    addressPickerText: {
+        fontSize: 15,
+        color: '#333',
+    },
+    clearAddressButton: {
+        marginTop: 8,
+        alignSelf: 'flex-start',
+    },
+    clearAddressButtonText: {
+        fontSize: 13,
+        color: '#FF3B30',
+    },
     modalButtons: {
         flexDirection: 'row',
         marginTop: 25,
@@ -695,6 +872,50 @@ const styles = StyleSheet.create({
     },
     saveButtonText: {
         color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    pickerModalContent: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        padding: 20,
+        maxHeight: '70%',
+    },
+    pickerTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#333',
+        marginBottom: 15,
+    },
+    addressList: {
+        maxHeight: '80%',
+    },
+    addressOption: {
+        padding: 14,
+        backgroundColor: '#f8f8f8',
+        borderRadius: 10,
+        marginBottom: 8,
+    },
+    addressOptionName: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#333',
+        marginBottom: 4,
+    },
+    addressOptionValue: {
+        fontSize: 13,
+        color: '#666',
+    },
+    closePickerButton: {
+        backgroundColor: '#f0f0f0',
+        padding: 16,
+        borderRadius: 10,
+        alignItems: 'center',
+        marginTop: 15,
+    },
+    closePickerButtonText: {
+        color: '#333',
         fontSize: 16,
         fontWeight: '600',
     },

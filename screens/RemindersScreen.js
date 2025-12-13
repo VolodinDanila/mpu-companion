@@ -10,22 +10,29 @@ import {
     TextInput,
     ScrollView,
     ActivityIndicator,
+    Linking,
 } from 'react-native';
-import { loadReminders, addReminder, updateReminder, deleteReminder } from '../utils/storage';
+import { loadReminders, addReminder, updateReminder, deleteReminder, loadSettings, getAllAddressesList } from '../utils/storage';
 
 export default function RemindersScreen() {
     const [reminders, setReminders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingReminder, setEditingReminder] = useState(null);
+    const [addressPickerVisible, setAddressPickerVisible] = useState(false);
 
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [date, setDate] = useState('');
     const [time, setTime] = useState('');
+    const [selectedAddress, setSelectedAddress] = useState(null);
+    const [addresses, setAddresses] = useState([]);
+    const [homeAddress, setHomeAddress] = useState('');
+    const [transportMode, setTransportMode] = useState('transit');
 
     useEffect(() => {
         loadRemindersData();
+        loadHomeAddress();
     }, []);
 
     const loadRemindersData = async () => {
@@ -34,24 +41,59 @@ export default function RemindersScreen() {
             const data = await loadReminders();
             setReminders(data || []);
         } catch (error) {
-            console.error('ошибка загрузки напоминаний:', error);
+            console.error('Ошибка загрузки напоминаний:', error);
         }
         setLoading(false);
     };
 
-    const openModal = (reminder = null) => {
+    const loadHomeAddress = async () => {
+        try {
+            const settings = await loadSettings();
+            if (settings) {
+                if (settings.homeAddress) {
+                    setHomeAddress(settings.homeAddress);
+                }
+                if (settings.transportMode) {
+                    setTransportMode(settings.transportMode);
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки настроек:', error);
+        }
+    };
+
+    const loadAddressesList = async () => {
+        try {
+            const list = await getAllAddressesList();
+            setAddresses(list);
+        } catch (error) {
+            console.error('Ошибка загрузки адресов:', error);
+        }
+    };
+
+    const openModal = async (reminder = null) => {
+        await loadAddressesList();
+
         if (reminder) {
             setEditingReminder(reminder);
             setTitle(reminder.title);
             setDescription(reminder.description || '');
             setDate(reminder.date);
             setTime(reminder.time);
+
+            if (reminder.addressId) {
+                const addr = addresses.find(a => a.id === reminder.addressId);
+                setSelectedAddress(addr || null);
+            } else {
+                setSelectedAddress(null);
+            }
         } else {
             setEditingReminder(null);
             setTitle('');
             setDescription('');
             setDate('');
             setTime('');
+            setSelectedAddress(null);
         }
         setModalVisible(true);
     };
@@ -63,33 +105,34 @@ export default function RemindersScreen() {
         setDescription('');
         setDate('');
         setTime('');
+        setSelectedAddress(null);
     };
 
     const handleSave = async () => {
         if (!title.trim()) {
-            Alert.alert('ошибка', 'введите название напоминания');
+            Alert.alert('Ошибка', 'Введите название напоминания');
             return;
         }
 
         if (!date.trim()) {
-            Alert.alert('ошибка', 'введите дату в формате дд.мм.гггг');
+            Alert.alert('Ошибка', 'Введите дату в формате ДД.ММ.ГГГГ');
             return;
         }
 
         if (!time.trim()) {
-            Alert.alert('ошибка', 'введите время в формате чч:мм');
+            Alert.alert('Ошибка', 'Введите время в формате ЧЧ:ММ');
             return;
         }
 
         const dateRegex = /^\d{2}\.\d{2}\.\d{4}$/;
         if (!dateRegex.test(date)) {
-            Alert.alert('ошибка', 'неверный формат даты. используйте дд.мм.гггг');
+            Alert.alert('Ошибка', 'Неверный формат даты. Используйте ДД.ММ.ГГГГ');
             return;
         }
 
         const timeRegex = /^\d{2}:\d{2}$/;
         if (!timeRegex.test(time)) {
-            Alert.alert('ошибка', 'неверный формат времени. используйте чч:мм');
+            Alert.alert('Ошибка', 'Неверный формат времени. Используйте ЧЧ:ММ');
             return;
         }
 
@@ -99,6 +142,7 @@ export default function RemindersScreen() {
                 description: description.trim(),
                 date: date.trim(),
                 time: time.trim(),
+                addressId: selectedAddress?.id || null,
             };
 
             if (editingReminder) {
@@ -110,31 +154,31 @@ export default function RemindersScreen() {
             await loadRemindersData();
             closeModal();
             Alert.alert(
-                'успешно',
-                editingReminder ? 'напоминание обновлено' : 'напоминание создано'
+                'Успешно',
+                editingReminder ? 'Напоминание обновлено' : 'Напоминание создано'
             );
         } catch (error) {
-            console.error('ошибка сохранения напоминания:', error);
-            Alert.alert('ошибка', 'не удалось сохранить напоминание');
+            console.error('Ошибка сохранения напоминания:', error);
+            Alert.alert('Ошибка', 'Не удалось сохранить напоминание');
         }
     };
 
     const handleDelete = (reminder) => {
         Alert.alert(
-            'удалить напоминание?',
-            `вы уверены что хотите удалить "${reminder.title}"?`,
+            'Удалить напоминание?',
+            `Вы уверены что хотите удалить "${reminder.title}"?`,
             [
-                { text: 'отмена', style: 'cancel' },
+                { text: 'Отмена', style: 'cancel' },
                 {
-                    text: 'удалить',
+                    text: 'Удалить',
                     style: 'destructive',
                     onPress: async () => {
                         try {
                             await deleteReminder(reminder.id);
                             await loadRemindersData();
                         } catch (error) {
-                            console.error('ошибка удаления напоминания:', error);
-                            Alert.alert('ошибка', 'не удалось удалить напоминание');
+                            console.error('Ошибка удаления напоминания:', error);
+                            Alert.alert('Ошибка', 'Не удалось удалить напоминание');
                         }
                     },
                 },
@@ -142,13 +186,66 @@ export default function RemindersScreen() {
         );
     };
 
+    const handleReminderClick = async (reminder) => {
+        if (!reminder.addressId) {
+            openModal(reminder);
+            return;
+        }
+
+        if (!homeAddress) {
+            Alert.alert('Ошибка', 'Укажите домашний адрес в настройках');
+            return;
+        }
+
+        const address = addresses.length > 0
+            ? addresses.find(a => a.id === reminder.addressId)
+            : null;
+
+        if (!address) {
+            await loadAddressesList();
+            const addr = addresses.find(a => a.id === reminder.addressId);
+            if (!addr) {
+                Alert.alert('Ошибка', 'Адрес не найден');
+                return;
+            }
+            openYandexMaps(homeAddress, addr.address);
+        } else {
+            openYandexMaps(homeAddress, address.address);
+        }
+    };
+
+    const openYandexMaps = async (from, to) => {
+        const routeType = transportMode === 'auto' ? 'auto'
+            : transportMode === 'pedestrian' ? 'pd'
+                : 'mt';
+
+        const url = `https://yandex.ru/maps/?rtext=${encodeURIComponent(from)}~${encodeURIComponent(to)}&rtt=${routeType}`;
+
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+            await Linking.openURL(url);
+        } else {
+            Alert.alert('Ошибка', 'Не удалось открыть Яндекс.Карты');
+        }
+    };
+
+    const openAddressPicker = () => {
+        setAddressPickerVisible(true);
+    };
+
+    const selectAddress = (address) => {
+        setSelectedAddress(address);
+        setAddressPickerVisible(false);
+    };
+
     const renderReminderItem = ({ item }) => {
         const isPast = isReminderPast(item.date, item.time);
+        const address = item.addressId ? addresses.find(a => a.id === item.addressId) : null;
 
         return (
             <TouchableOpacity
                 style={[styles.reminderCard, isPast && styles.reminderCardPast]}
-                onPress={() => openModal(item)}
+                onPress={() => handleReminderClick(item)}
                 onLongPress={() => handleDelete(item)}
             >
                 <View style={styles.reminderHeader}>
@@ -157,7 +254,7 @@ export default function RemindersScreen() {
                     </Text>
                     {isPast && (
                         <View style={styles.pastBadge}>
-                            <Text style={styles.pastBadgeText}>прошло</Text>
+                            <Text style={styles.pastBadgeText}>Прошло</Text>
                         </View>
                     )}
                 </View>
@@ -172,10 +269,15 @@ export default function RemindersScreen() {
                     <Text style={styles.reminderDateTime}>
                         📅 {item.date} · 🕐 {item.time}
                     </Text>
+                    {address && (
+                        <Text style={styles.reminderAddress}>
+                            📍 {address.code ? `${address.code} — ${address.name}` : address.name}
+                        </Text>
+                    )}
                 </View>
 
                 <Text style={styles.reminderHint}>
-                    нажмите для редактирования • удержите для удаления
+                    {address ? 'Нажмите для маршрута • ' : 'Нажмите для редактирования • '}Удержите для удаления
                 </Text>
             </TouchableOpacity>
         );
@@ -211,7 +313,7 @@ export default function RemindersScreen() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>напоминания</Text>
+                <Text style={styles.headerTitle}>Напоминания</Text>
                 <Text style={styles.headerSubtitle}>
                     {reminders.length} {reminders.length === 1 ? 'напоминание' : 'напоминаний'}
                 </Text>
@@ -220,7 +322,7 @@ export default function RemindersScreen() {
             {loading ? (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#007AFF" />
-                    <Text style={styles.loadingText}>загрузка...</Text>
+                    <Text style={styles.loadingText}>Загрузка...</Text>
                 </View>
             ) : sortedReminders.length > 0 ? (
                 <FlatList
@@ -232,9 +334,9 @@ export default function RemindersScreen() {
             ) : (
                 <View style={styles.emptyContainer}>
                     <Text style={styles.emptyEmoji}>📌</Text>
-                    <Text style={styles.emptyTitle}>нет напоминаний</Text>
+                    <Text style={styles.emptyTitle}>Нет напоминаний</Text>
                     <Text style={styles.emptySubtitle}>
-                        создайте первое напоминание о важном событии
+                        Создайте первое напоминание о важном событии
                     </Text>
                 </View>
             )}
@@ -243,7 +345,7 @@ export default function RemindersScreen() {
                 style={styles.addButton}
                 onPress={() => openModal()}
             >
-                <Text style={styles.addButtonText}>+ создать напоминание</Text>
+                <Text style={styles.addButtonText}>+ Создать напоминание</Text>
             </TouchableOpacity>
 
             <Modal
@@ -256,30 +358,30 @@ export default function RemindersScreen() {
                     <View style={styles.modalContent}>
                         <ScrollView>
                             <Text style={styles.modalTitle}>
-                                {editingReminder ? 'редактировать напоминание' : 'новое напоминание'}
+                                {editingReminder ? 'Редактировать напоминание' : 'Новое напоминание'}
                             </Text>
 
-                            <Text style={styles.inputLabel}>название *</Text>
+                            <Text style={styles.inputLabel}>Название *</Text>
                             <TextInput
                                 style={styles.input}
                                 value={title}
                                 onChangeText={setTitle}
-                                placeholder="например: дедлайн по проекту"
+                                placeholder="Например: Дедлайн по проекту"
                                 placeholderTextColor="#999"
                             />
 
-                            <Text style={styles.inputLabel}>описание</Text>
+                            <Text style={styles.inputLabel}>Описание</Text>
                             <TextInput
                                 style={[styles.input, styles.textArea]}
                                 value={description}
                                 onChangeText={setDescription}
-                                placeholder="дополнительная информация"
+                                placeholder="Дополнительная информация"
                                 placeholderTextColor="#999"
                                 multiline
                                 numberOfLines={3}
                             />
 
-                            <Text style={styles.inputLabel}>дата * (дд.мм.гггг)</Text>
+                            <Text style={styles.inputLabel}>Дата * (ДД.ММ.ГГГГ)</Text>
                             <TextInput
                                 style={styles.input}
                                 value={date}
@@ -289,7 +391,7 @@ export default function RemindersScreen() {
                                 keyboardType="numeric"
                             />
 
-                            <Text style={styles.inputLabel}>время * (чч:мм)</Text>
+                            <Text style={styles.inputLabel}>Время * (ЧЧ:ММ)</Text>
                             <TextInput
                                 style={styles.input}
                                 value={time}
@@ -299,22 +401,75 @@ export default function RemindersScreen() {
                                 keyboardType="numeric"
                             />
 
+                            <Text style={styles.inputLabel}>Место (опционально)</Text>
+                            <TouchableOpacity
+                                style={styles.addressPicker}
+                                onPress={openAddressPicker}
+                            >
+                                <Text style={styles.addressPickerText}>
+                                    {selectedAddress
+                                        ? (selectedAddress.code ? `${selectedAddress.code} — ${selectedAddress.name}` : selectedAddress.name)
+                                        : '📍 Выбрать адрес'}
+                                </Text>
+                            </TouchableOpacity>
+                            {selectedAddress && (
+                                <TouchableOpacity
+                                    onPress={() => setSelectedAddress(null)}
+                                    style={styles.clearAddressButton}
+                                >
+                                    <Text style={styles.clearAddressButtonText}>✕ Убрать адрес</Text>
+                                </TouchableOpacity>
+                            )}
+
                             <View style={styles.modalButtons}>
                                 <TouchableOpacity
                                     style={[styles.modalButton, styles.cancelButton]}
                                     onPress={closeModal}
                                 >
-                                    <Text style={styles.cancelButtonText}>отмена</Text>
+                                    <Text style={styles.cancelButtonText}>Отмена</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
                                     style={[styles.modalButton, styles.saveButton]}
                                     onPress={handleSave}
                                 >
-                                    <Text style={styles.saveButtonText}>сохранить</Text>
+                                    <Text style={styles.saveButtonText}>Сохранить</Text>
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal
+                visible={addressPickerVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setAddressPickerVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.pickerModalContent}>
+                        <Text style={styles.pickerTitle}>Выберите адрес</Text>
+                        <ScrollView style={styles.addressList}>
+                            {addresses.map(addr => (
+                                <TouchableOpacity
+                                    key={addr.id}
+                                    style={styles.addressOption}
+                                    onPress={() => selectAddress(addr)}
+                                >
+                                    <Text style={styles.addressOptionName}>
+                                        {addr.code ? `${addr.code} — ${addr.name}` : addr.name}
+                                    </Text>
+                                    <Text style={styles.addressOptionValue}>{addr.address}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                        <TouchableOpacity
+                            style={styles.closePickerButton}
+                            onPress={() => setAddressPickerVisible(false)}
+                        >
+                            <Text style={styles.closePickerButtonText}>Закрыть</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
@@ -400,6 +555,12 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#007AFF',
         fontWeight: '500',
+        marginBottom: 4,
+    },
+    reminderAddress: {
+        fontSize: 13,
+        color: '#666',
+        marginTop: 2,
     },
     reminderHint: {
         fontSize: 11,
@@ -487,6 +648,25 @@ const styles = StyleSheet.create({
         height: 80,
         textAlignVertical: 'top',
     },
+    addressPicker: {
+        backgroundColor: '#f8f8f8',
+        borderRadius: 10,
+        padding: 14,
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+    },
+    addressPickerText: {
+        fontSize: 15,
+        color: '#333',
+    },
+    clearAddressButton: {
+        marginTop: 8,
+        alignSelf: 'flex-start',
+    },
+    clearAddressButtonText: {
+        fontSize: 13,
+        color: '#FF3B30',
+    },
     modalButtons: {
         flexDirection: 'row',
         marginTop: 25,
@@ -511,6 +691,50 @@ const styles = StyleSheet.create({
     },
     saveButtonText: {
         color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    pickerModalContent: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        padding: 20,
+        maxHeight: '70%',
+    },
+    pickerTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#333',
+        marginBottom: 15,
+    },
+    addressList: {
+        maxHeight: '80%',
+    },
+    addressOption: {
+        padding: 14,
+        backgroundColor: '#f8f8f8',
+        borderRadius: 10,
+        marginBottom: 8,
+    },
+    addressOptionName: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#333',
+        marginBottom: 4,
+    },
+    addressOptionValue: {
+        fontSize: 13,
+        color: '#666',
+    },
+    closePickerButton: {
+        backgroundColor: '#f0f0f0',
+        padding: 16,
+        borderRadius: 10,
+        alignItems: 'center',
+        marginTop: 15,
+    },
+    closePickerButtonText: {
+        color: '#333',
         fontSize: 16,
         fontWeight: '600',
     },

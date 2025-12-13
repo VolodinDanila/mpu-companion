@@ -8,23 +8,23 @@ import {
     TouchableOpacity,
     Alert,
     ActivityIndicator,
+    Modal,
+    FlatList,
 } from 'react-native';
-import { saveSettings, loadSettings } from '../utils/storage';
+import { loadSettings, saveSettings, loadAddresses, saveCustomAddress, deleteCustomAddress } from '../utils/storage';
 
 export default function SettingsScreen() {
-    const [morningRoutine, setMorningRoutine] = useState('60');
+    const [loading, setLoading] = useState(false);
     const [homeAddress, setHomeAddress] = useState('');
+    const [routineMinutes, setRoutineMinutes] = useState('30');
     const [groupNumber, setGroupNumber] = useState('');
-    const [campusAddresses, setCampusAddresses] = useState([
-        { code: 'пр', name: 'Прянишникова', address: '', duration: '' },
-        { code: 'пк', name: 'Павла Корчагина', address: '', duration: '' },
-        { code: 'ав', name: 'Автозаводская', address: '', duration: '' },
-        { code: 'бс', name: 'Большая Семёновская', address: '', duration: '' },
-    ]);
-    const [transportType, setTransportType] = useState('public');
-    const [extraTime, setExtraTime] = useState('10');
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
+    const [transportMode, setTransportMode] = useState('transit');
+    const [bufferMinutes, setBufferMinutes] = useState('15');
+
+    const [addressesModalVisible, setAddressesModalVisible] = useState(false);
+    const [addresses, setAddresses] = useState({ predefined: { campuses: [], dorms: [] }, custom: [] });
+    const [newAddressName, setNewAddressName] = useState('');
+    const [newAddressValue, setNewAddressValue] = useState('');
 
     useEffect(() => {
         loadSettingsFromStorage();
@@ -32,254 +32,332 @@ export default function SettingsScreen() {
 
     const loadSettingsFromStorage = async () => {
         setLoading(true);
-        const savedSettings = await loadSettings();
-
-        if (savedSettings) {
-            setMorningRoutine(savedSettings.morningRoutine || '60');
-            setHomeAddress(savedSettings.homeAddress || '');
-            setGroupNumber(savedSettings.groupNumber || '');
-
-            if (savedSettings.campusAddresses && Array.isArray(savedSettings.campusAddresses)) {
-                const migratedCampuses = savedSettings.campusAddresses.map(campus => ({
-                    ...campus,
-                    duration: campus.duration || ''
-                }));
-                setCampusAddresses(migratedCampuses);
+        try {
+            const settings = await loadSettings();
+            if (settings) {
+                setHomeAddress(settings.homeAddress || '');
+                setRoutineMinutes(settings.routineMinutes?.toString() || '30');
+                setGroupNumber(settings.groupNumber || '');
+                setTransportMode(settings.transportMode || 'transit');
+                setBufferMinutes(settings.bufferMinutes?.toString() || '15');
             }
-
-            setTransportType(savedSettings.transportType || 'public');
-            setExtraTime(savedSettings.extraTime || '10');
-
-            console.log('📱 настройки загружены:', savedSettings);
-        } else {
-            console.log('📱 нет сохранённых настроек, используются значения по умолчанию');
+        } catch (error) {
+            console.error('Ошибка загрузки настроек:', error);
         }
-
         setLoading(false);
     };
 
-    const handleSaveSettings = async () => {
+    const loadAddressesList = async () => {
+        try {
+            const data = await loadAddresses();
+            setAddresses(data);
+        } catch (error) {
+            console.error('Ошибка загрузки адресов:', error);
+        }
+    };
+
+    const handleSave = async () => {
         if (!homeAddress.trim()) {
             Alert.alert('Ошибка', 'Укажите домашний адрес');
             return;
         }
 
-        const hasCampus = campusAddresses.some(c => c.address.trim());
-        if (!hasCampus) {
-            Alert.alert('Ошибка', 'Укажите адрес хотя бы одного корпуса');
+        if (!groupNumber.trim()) {
+            Alert.alert('Ошибка', 'Укажите номер группы');
             return;
         }
 
-        if (!morningRoutine || isNaN(morningRoutine) || parseInt(morningRoutine) < 1) {
-            Alert.alert('Ошибка', 'Укажите корректное время утренней рутины (минимум 1 минута)');
+        const routine = parseInt(routineMinutes, 10);
+        if (isNaN(routine) || routine < 0) {
+            Alert.alert('Ошибка', 'Неверное значение утренней рутины');
             return;
         }
 
-        if (!extraTime || isNaN(extraTime) || parseInt(extraTime) < 0) {
-            Alert.alert('Ошибка', 'Укажите корректное дополнительное время');
+        const buffer = parseInt(bufferMinutes, 10);
+        if (isNaN(buffer) || buffer < 0) {
+            Alert.alert('Ошибка', 'Неверное значение запаса времени');
             return;
         }
 
-        setSaving(true);
+        setLoading(true);
+        try {
+            const settings = {
+                homeAddress: homeAddress.trim(),
+                routineMinutes: routine,
+                groupNumber: groupNumber.trim(),
+                transportMode,
+                bufferMinutes: buffer,
+            };
 
-        const settings = {
-            morningRoutine,
-            homeAddress,
-            groupNumber,
-            campusAddresses,
-            transportType,
-            extraTime,
-            updatedAt: new Date().toISOString(),
-        };
-
-        console.log('💾 сохраняю настройки:', settings);
-
-        const success = await saveSettings(settings);
-
-        setSaving(false);
-
-        if (success) {
-            Alert.alert(
-                'Успех',
-                'Настройки сохранены',
-                [{ text: 'OK' }]
-            );
-        } else {
+            await saveSettings(settings);
+            Alert.alert('Успешно', 'Настройки сохранены');
+        } catch (error) {
+            console.error('Ошибка сохранения настроек:', error);
             Alert.alert('Ошибка', 'Не удалось сохранить настройки');
+        }
+        setLoading(false);
+    };
+
+    const openAddressesModal = async () => {
+        await loadAddressesList();
+        setAddressesModalVisible(true);
+    };
+
+    const closeAddressesModal = () => {
+        setAddressesModalVisible(false);
+        setNewAddressName('');
+        setNewAddressValue('');
+    };
+
+    const handleAddCustomAddress = async () => {
+        if (!newAddressName.trim() || !newAddressValue.trim()) {
+            Alert.alert('Ошибка', 'Заполните название и адрес');
+            return;
+        }
+
+        try {
+            await saveCustomAddress({
+                name: newAddressName.trim(),
+                address: newAddressValue.trim(),
+            });
+            await loadAddressesList();
+            setNewAddressName('');
+            setNewAddressValue('');
+            Alert.alert('Успешно', 'Адрес добавлен');
+        } catch (error) {
+            console.error('Ошибка добавления адреса:', error);
+            Alert.alert('Ошибка', 'Не удалось добавить адрес');
         }
     };
 
-    const renderTransportButton = (type, label, emoji) => (
+    const handleDeleteAddress = (address) => {
+        if (address.type !== 'custom') {
+            Alert.alert('Ошибка', 'Встроенные адреса нельзя удалить');
+            return;
+        }
+
+        Alert.alert(
+            'Удалить адрес?',
+            `Вы уверены что хотите удалить "${address.name}"?`,
+            [
+                { text: 'Отмена', style: 'cancel' },
+                {
+                    text: 'Удалить',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await deleteCustomAddress(address.id);
+                            await loadAddressesList();
+                        } catch (error) {
+                            console.error('Ошибка удаления адреса:', error);
+                            Alert.alert('Ошибка', 'Не удалось удалить адрес');
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    const renderAddressItem = ({ item }) => (
         <TouchableOpacity
-            key={type}
-            style={[
-                styles.transportButton,
-                transportType === type && styles.transportButtonActive,
-            ]}
-            onPress={() => setTransportType(type)}
+            style={styles.addressCard}
+            onLongPress={() => handleDeleteAddress(item)}
         >
-            <Text style={styles.transportEmoji}>{emoji}</Text>
-            <Text
-                style={[
-                    styles.transportText,
-                    transportType === type && styles.transportTextActive,
-                ]}
-            >
-                {label}
-            </Text>
+            <View style={styles.addressHeader}>
+                <Text style={styles.addressName}>
+                    {item.code ? `${item.code} — ${item.name}` : item.name}
+                </Text>
+                {item.type === 'custom' && (
+                    <View style={styles.customAddressBadge}>
+                        <Text style={styles.customAddressBadgeText}>Своё</Text>
+                    </View>
+                )}
+            </View>
+            <Text style={styles.addressValue}>{item.address}</Text>
+            {item.type === 'custom' && (
+                <Text style={styles.addressHint}>Удержите для удаления</Text>
+            )}
         </TouchableOpacity>
     );
 
-    if (loading) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#007AFF" />
-                <Text style={styles.loadingText}>Загрузка настроек...</Text>
-            </View>
-        );
-    }
+    const transportModes = [
+        { id: 'transit', icon: '🚌', label: 'Общественный' },
+        { id: 'auto', icon: '🚗', label: 'Авто' },
+        { id: 'pedestrian', icon: '🚶', label: 'Пешком' },
+    ];
 
     return (
         <ScrollView style={styles.container}>
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>⏰ Утренняя рутина</Text>
-                <Text style={styles.sectionDescription}>
-                    Сколько времени вам нужно на утренние сборы?
-                </Text>
-
-                <View style={styles.inputContainer}>
-                    <TextInput
-                        style={styles.input}
-                        value={morningRoutine}
-                        onChangeText={setMorningRoutine}
-                        placeholder="60"
-                        keyboardType="numeric"
-                        maxLength={3}
-                    />
-                    <Text style={styles.inputLabel}>минут</Text>
-                </View>
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>Настройки</Text>
             </View>
 
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>📍 Адреса</Text>
+            {loading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                </View>
+            ) : (
+                <View style={styles.content}>
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Адреса</Text>
+                        <TouchableOpacity
+                            style={styles.addressesButton}
+                            onPress={openAddressesModal}
+                        >
+                            <Text style={styles.addressesButtonText}>📍 Управление адресами</Text>
+                            <Text style={styles.addressesButtonSubtext}>
+                                Корпуса, общежития и свои адреса
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
 
-                <Text style={styles.label}>Домашний адрес</Text>
-                <TextInput
-                    style={styles.textInput}
-                    value={homeAddress}
-                    onChangeText={setHomeAddress}
-                    placeholder="Например: Москва, ул. Ленина, д. 15"
-                    placeholderTextColor="#999"
-                />
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Основные настройки</Text>
 
-                <Text style={[styles.label, styles.labelMarginTop]}>Корпуса университета</Text>
-                <Text style={styles.helperText}>
-                    Укажите адреса корпусов и время в пути до них
-                </Text>
+                        <Text style={styles.inputLabel}>Домашний адрес *</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={homeAddress}
+                            onChangeText={setHomeAddress}
+                            placeholder="ул. Примерная, д. 123"
+                            placeholderTextColor="#999"
+                        />
 
-                {campusAddresses.map((campus, index) => (
-                    <View key={campus.code} style={styles.campusInputContainer}>
-                        <Text style={styles.campusCode}>{campus.code.toUpperCase()}</Text>
-                        <View style={styles.campusTextInputContainer}>
-                            <Text style={styles.campusName}>{campus.name}</Text>
-                            <TextInput
-                                style={styles.campusTextInput}
-                                value={campus.address}
-                                onChangeText={(text) => {
-                                    const updated = [...campusAddresses];
-                                    updated[index].address = text;
-                                    setCampusAddresses(updated);
-                                }}
-                                placeholder="Адрес корпуса"
-                                placeholderTextColor="#999"
-                            />
-                            <View style={styles.campusDurationContainer}>
-                                <TextInput
-                                    style={styles.campusDurationInput}
-                                    value={campus.duration}
-                                    onChangeText={(text) => {
-                                        const updated = [...campusAddresses];
-                                        updated[index].duration = text;
-                                        setCampusAddresses(updated);
-                                    }}
-                                    placeholder="60"
-                                    keyboardType="numeric"
-                                    maxLength={3}
-                                    placeholderTextColor="#999"
-                                />
-                                <Text style={styles.campusDurationLabel}>мин</Text>
-                            </View>
+                        <Text style={styles.inputLabel}>Номер группы *</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={groupNumber}
+                            onChangeText={setGroupNumber}
+                            placeholder="231-324"
+                            placeholderTextColor="#999"
+                        />
+
+                        <Text style={styles.inputLabel}>Утренняя рутина (минуты)</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={routineMinutes}
+                            onChangeText={setRoutineMinutes}
+                            placeholder="30"
+                            placeholderTextColor="#999"
+                            keyboardType="numeric"
+                        />
+
+                        <Text style={styles.inputLabel}>Запас времени (минуты)</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={bufferMinutes}
+                            onChangeText={setBufferMinutes}
+                            placeholder="15"
+                            placeholderTextColor="#999"
+                            keyboardType="numeric"
+                        />
+                    </View>
+
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Транспорт</Text>
+                        <View style={styles.transportButtons}>
+                            {transportModes.map(mode => (
+                                <TouchableOpacity
+                                    key={mode.id}
+                                    style={[
+                                        styles.transportButton,
+                                        transportMode === mode.id && styles.transportButtonActive,
+                                    ]}
+                                    onPress={() => setTransportMode(mode.id)}
+                                >
+                                    <Text style={styles.transportIcon}>{mode.icon}</Text>
+                                    <Text
+                                        style={[
+                                            styles.transportLabel,
+                                            transportMode === mode.id && styles.transportLabelActive,
+                                        ]}
+                                    >
+                                        {mode.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
                         </View>
                     </View>
-                ))}
-            </View>
 
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🎓 Учебная группа</Text>
-
-                <Text style={styles.label}>Номер группы</Text>
-                <TextInput
-                    style={styles.textInput}
-                    value={groupNumber}
-                    onChangeText={setGroupNumber}
-                    placeholder="Например: 231-324"
-                    placeholderTextColor="#999"
-                />
-                <Text style={styles.helperText}>
-                    Введите номер вашей группы для автоматической загрузки расписания
-                </Text>
-            </View>
-
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🚗 Способ передвижения</Text>
-                <Text style={styles.sectionDescription}>
-                    Как вы добираетесь до университета?
-                </Text>
-
-                <View style={styles.transportContainer}>
-                    {renderTransportButton('public', 'Общественный\nтранспорт', '🚌')}
-                    {renderTransportButton('car', 'Личный\nавтомобиль', '🚗')}
-                    {renderTransportButton('walk', 'Пешком', '🚶')}
+                    <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+                        <Text style={styles.saveButtonText}>Сохранить</Text>
+                    </TouchableOpacity>
                 </View>
-            </View>
+            )}
 
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>⏱️ Дополнительное время</Text>
-                <Text style={styles.sectionDescription}>
-                    Запас времени на непредвиденные обстоятельства
-                </Text>
-
-                <View style={styles.inputContainer}>
-                    <TextInput
-                        style={styles.input}
-                        value={extraTime}
-                        onChangeText={setExtraTime}
-                        placeholder="10"
-                        keyboardType="numeric"
-                        maxLength={2}
-                    />
-                    <Text style={styles.inputLabel}>минут</Text>
-                </View>
-            </View>
-
-            <TouchableOpacity
-                style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-                onPress={handleSaveSettings}
-                disabled={saving}
+            <Modal
+                visible={addressesModalVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={closeAddressesModal}
             >
-                {saving ? (
-                    <ActivityIndicator color="#fff" />
-                ) : (
-                    <Text style={styles.saveButtonText}>Сохранить настройки</Text>
-                )}
-            </TouchableOpacity>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Адреса</Text>
 
-            <View style={styles.infoBox}>
-                <Text style={styles.infoText}>
-                    💡 Приложение автоматически рассчитает время будильника на основе
-                    ваших настроек, расписания и текущей дорожной ситуации.
-                </Text>
-            </View>
+                        <ScrollView style={styles.addressesList}>
+                            <Text style={styles.addressCategoryTitle}>🏛 Корпуса университета</Text>
+                            <FlatList
+                                data={addresses.predefined.campuses}
+                                renderItem={renderAddressItem}
+                                keyExtractor={item => item.id}
+                                scrollEnabled={false}
+                            />
+
+                            <Text style={styles.addressCategoryTitle}>🏠 Общежития</Text>
+                            <FlatList
+                                data={addresses.predefined.dorms}
+                                renderItem={renderAddressItem}
+                                keyExtractor={item => item.id}
+                                scrollEnabled={false}
+                            />
+
+                            {addresses.custom.length > 0 && (
+                                <>
+                                    <Text style={styles.addressCategoryTitle}>📌 Свои адреса</Text>
+                                    <FlatList
+                                        data={addresses.custom}
+                                        renderItem={renderAddressItem}
+                                        keyExtractor={item => item.id}
+                                        scrollEnabled={false}
+                                    />
+                                </>
+                            )}
+                        </ScrollView>
+
+                        <View style={styles.addAddressSection}>
+                            <Text style={styles.addAddressTitle}>Добавить свой адрес</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                value={newAddressName}
+                                onChangeText={setNewAddressName}
+                                placeholder="Название (например: Работа)"
+                                placeholderTextColor="#999"
+                            />
+                            <TextInput
+                                style={styles.modalInput}
+                                value={newAddressValue}
+                                onChangeText={setNewAddressValue}
+                                placeholder="Адрес"
+                                placeholderTextColor="#999"
+                            />
+                            <TouchableOpacity
+                                style={styles.addAddressButton}
+                                onPress={handleAddCustomAddress}
+                            >
+                                <Text style={styles.addAddressButtonText}>+ Добавить</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            style={styles.closeModalButton}
+                            onPress={closeAddressesModal}
+                        >
+                            <Text style={styles.closeModalButtonText}>Закрыть</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </ScrollView>
     );
 }
@@ -289,199 +367,222 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#f5f5f5',
     },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#f5f5f5',
+    header: {
+        backgroundColor: '#fff',
+        padding: 20,
+        paddingTop: 50,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
     },
-    loadingText: {
-        marginTop: 10,
-        fontSize: 14,
-        color: '#666',
+    headerTitle: {
+        fontSize: 28,
+        fontWeight: '700',
+        color: '#333',
+    },
+    content: {
+        padding: 20,
     },
     section: {
-        backgroundColor: '#fff',
-        marginTop: 15,
-        padding: 20,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: '#e0e0e0',
+        marginBottom: 25,
     },
     sectionTitle: {
         fontSize: 18,
         fontWeight: '600',
         color: '#333',
-        marginBottom: 5,
-    },
-    sectionDescription: {
-        fontSize: 14,
-        color: '#666',
         marginBottom: 15,
     },
-    inputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f8f8f8',
+    addressesButton: {
+        backgroundColor: '#fff',
+        padding: 16,
         borderRadius: 12,
-        padding: 15,
         borderWidth: 1,
-        borderColor: '#e0e0e0',
+        borderColor: '#007AFF',
     },
-    input: {
-        fontSize: 24,
+    addressesButtonText: {
+        fontSize: 16,
         fontWeight: '600',
         color: '#007AFF',
-        minWidth: 60,
-        textAlign: 'center',
+        marginBottom: 4,
+    },
+    addressesButtonSubtext: {
+        fontSize: 13,
+        color: '#666',
     },
     inputLabel: {
-        fontSize: 16,
-        color: '#666',
-        marginLeft: 10,
-    },
-    label: {
         fontSize: 14,
         fontWeight: '500',
         color: '#333',
         marginBottom: 8,
-    },
-    labelMarginTop: {
-        marginTop: 15,
-    },
-    textInput: {
-        backgroundColor: '#f8f8f8',
-        borderRadius: 12,
-        padding: 15,
-        fontSize: 16,
-        color: '#333',
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-    },
-    helperText: {
-        fontSize: 12,
-        color: '#999',
-        marginTop: 8,
-        fontStyle: 'italic',
-    },
-    campusInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
         marginTop: 12,
-        backgroundColor: '#f8f8f8',
-        borderRadius: 12,
-        padding: 12,
     },
-    campusCode: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#007AFF',
-        width: 40,
-        textAlign: 'center',
-    },
-    campusTextInputContainer: {
-        flex: 1,
-        marginLeft: 10,
-    },
-    campusName: {
-        fontSize: 12,
-        color: '#666',
-        marginBottom: 4,
-    },
-    campusTextInput: {
-        fontSize: 14,
-        color: '#333',
-        padding: 8,
+    input: {
         backgroundColor: '#fff',
-        borderRadius: 8,
+        borderRadius: 10,
+        padding: 14,
+        fontSize: 15,
+        color: '#333',
         borderWidth: 1,
         borderColor: '#e0e0e0',
-        marginBottom: 8,
     },
-    campusDurationContainer: {
+    transportButtons: {
         flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f5f5f5',
-        borderRadius: 8,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-    },
-    campusDurationInput: {
-        flex: 1,
-        fontSize: 14,
-        color: '#333',
-        padding: 0,
-    },
-    campusDurationLabel: {
-        fontSize: 14,
-        color: '#666',
-        marginLeft: 8,
-    },
-    transportContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
         gap: 10,
     },
     transportButton: {
         flex: 1,
-        backgroundColor: '#f8f8f8',
+        backgroundColor: '#fff',
+        padding: 16,
         borderRadius: 12,
-        padding: 15,
         alignItems: 'center',
         borderWidth: 2,
         borderColor: '#e0e0e0',
     },
     transportButtonActive: {
-        backgroundColor: '#E8F4FD',
         borderColor: '#007AFF',
+        backgroundColor: '#E8F4FD',
     },
-    transportEmoji: {
-        fontSize: 30,
+    transportIcon: {
+        fontSize: 32,
         marginBottom: 8,
     },
-    transportText: {
+    transportLabel: {
         fontSize: 12,
         color: '#666',
-        textAlign: 'center',
+        fontWeight: '500',
     },
-    transportTextActive: {
+    transportLabelActive: {
         color: '#007AFF',
         fontWeight: '600',
     },
     saveButton: {
         backgroundColor: '#007AFF',
-        margin: 20,
-        marginTop: 25,
-        padding: 18,
+        padding: 16,
         borderRadius: 12,
         alignItems: 'center',
-        shadowColor: '#007AFF',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    saveButtonDisabled: {
-        opacity: 0.6,
+        marginTop: 10,
+        marginBottom: 30,
     },
     saveButtonText: {
         color: '#fff',
-        fontSize: 17,
+        fontSize: 16,
         fontWeight: '600',
     },
-    infoBox: {
-        backgroundColor: '#FFF9E6',
-        margin: 20,
-        marginTop: 0,
-        padding: 15,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#FFE88C',
-        marginBottom: 30,
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 40,
     },
-    infoText: {
-        fontSize: 14,
-        color: '#8B7500',
-        lineHeight: 20,
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        padding: 20,
+        maxHeight: '90%',
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontWeight: '700',
+        color: '#333',
+        marginBottom: 20,
+    },
+    addressesList: {
+        maxHeight: '50%',
+    },
+    addressCategoryTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#666',
+        marginTop: 15,
+        marginBottom: 10,
+    },
+    addressCard: {
+        backgroundColor: '#f8f8f8',
+        padding: 12,
+        borderRadius: 10,
+        marginBottom: 8,
+    },
+    addressHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    addressName: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#333',
+        flex: 1,
+    },
+    customAddressBadge: {
+        backgroundColor: '#FF9500',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 8,
+    },
+    customAddressBadgeText: {
+        fontSize: 10,
+        color: '#fff',
+        fontWeight: '600',
+    },
+    addressValue: {
+        fontSize: 13,
+        color: '#666',
+    },
+    addressHint: {
+        fontSize: 11,
+        color: '#FF9500',
+        fontStyle: 'italic',
+        marginTop: 4,
+    },
+    addAddressSection: {
+        marginTop: 20,
+        paddingTop: 20,
+        borderTopWidth: 1,
+        borderTopColor: '#e0e0e0',
+    },
+    addAddressTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#333',
+        marginBottom: 12,
+    },
+    modalInput: {
+        backgroundColor: '#f8f8f8',
+        borderRadius: 10,
+        padding: 14,
+        fontSize: 15,
+        color: '#333',
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+        marginBottom: 10,
+    },
+    addAddressButton: {
+        backgroundColor: '#FF9500',
+        padding: 14,
+        borderRadius: 10,
+        alignItems: 'center',
+    },
+    addAddressButtonText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    closeModalButton: {
+        backgroundColor: '#f0f0f0',
+        padding: 16,
+        borderRadius: 10,
+        alignItems: 'center',
+        marginTop: 15,
+    },
+    closeModalButtonText: {
+        color: '#333',
+        fontSize: 16,
+        fontWeight: '600',
     },
 });
