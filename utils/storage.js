@@ -88,6 +88,39 @@ export const getAllAddressesList = async () => {
     ];
 };
 
+const TRAVEL_TIMES_KEY = 'travelTimes';
+
+export const loadTravelTimes = async () => {
+    try {
+        const data = await AsyncStorage.getItem(TRAVEL_TIMES_KEY);
+        return data ? JSON.parse(data) : {};
+    } catch (error) {
+        console.error('Ошибка загрузки времени в пути:', error);
+        return {};
+    }
+};
+
+export const saveTravelTime = async (addressId, minutes) => {
+    try {
+        const times = await loadTravelTimes();
+        times[addressId] = parseInt(minutes, 10);
+        await AsyncStorage.setItem(TRAVEL_TIMES_KEY, JSON.stringify(times));
+    } catch (error) {
+        console.error('Ошибка сохранения времени в пути:', error);
+        throw error;
+    }
+};
+
+export const getTravelTime = async (addressId) => {
+    try {
+        const times = await loadTravelTimes();
+        return times[addressId] || 90;
+    } catch (error) {
+        console.error('Ошибка получения времени в пути:', error);
+        return 90;
+    }
+};
+
 export const saveSettings = async (settings) => {
     try {
         await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));

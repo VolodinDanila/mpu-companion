@@ -10,8 +10,9 @@ import {
     ActivityIndicator,
     Modal,
     FlatList,
+    Linking,
 } from 'react-native';
-import { loadSettings, saveSettings, loadAddresses, saveCustomAddress, deleteCustomAddress } from '../utils/storage';
+import { loadSettings, saveSettings, loadAddresses, saveCustomAddress, deleteCustomAddress, loadTravelTimes, saveTravelTime, getTravelTime } from '../utils/storage';
 
 export default function SettingsScreen() {
     const [loading, setLoading] = useState(false);
@@ -25,6 +26,10 @@ export default function SettingsScreen() {
     const [addresses, setAddresses] = useState({ predefined: { campuses: [], dorms: [] }, custom: [] });
     const [newAddressName, setNewAddressName] = useState('');
     const [newAddressValue, setNewAddressValue] = useState('');
+    const [travelTimeModalVisible, setTravelTimeModalVisible] = useState(false);
+    const [selectedAddressForTime, setSelectedAddressForTime] = useState(null);
+    const [travelTimeInput, setTravelTimeInput] = useState('');
+    const [travelTimes, setTravelTimes] = useState({});
 
     useEffect(() => {
         loadSettingsFromStorage();
@@ -51,8 +56,58 @@ export default function SettingsScreen() {
         try {
             const data = await loadAddresses();
             setAddresses(data);
+
+            const times = await loadTravelTimes();
+            setTravelTimes(times);
         } catch (error) {
             console.error('Ошибка загрузки адресов:', error);
+        }
+    };
+
+    const openTravelTimeModal = async (address) => {
+        setSelectedAddressForTime(address);
+        const time = await getTravelTime(address.id);
+        setTravelTimeInput(time.toString());
+        setTravelTimeModalVisible(true);
+    };
+
+    const closeTravelTimeModal = () => {
+        setTravelTimeModalVisible(false);
+        setSelectedAddressForTime(null);
+        setTravelTimeInput('');
+    };
+
+    const saveTravelTimeForAddress = async () => {
+        const minutes = parseInt(travelTimeInput, 10);
+        if (isNaN(minutes) || minutes < 1) {
+            Alert.alert('Ошибка', 'Введите корректное время в минутах');
+            return;
+        }
+
+        try {
+            await saveTravelTime(selectedAddressForTime.id, minutes);
+            await loadAddressesList();
+            closeTravelTimeModal();
+            Alert.alert('Успешно', `Время в пути установлено: ${minutes} мин`);
+        } catch (error) {
+            console.error('Ошибка сохранения времени:', error);
+            Alert.alert('Ошибка', 'Не удалось сохранить время');
+        }
+    };
+
+    const openRouteForAddress = async () => {
+        if (!homeAddress) {
+            Alert.alert('Ошибка', 'Укажите домашний адрес в настройках');
+            return;
+        }
+
+        const url = `https://yandex.ru/maps/?rtext=${encodeURIComponent(homeAddress)}~${encodeURIComponent(selectedAddressForTime.address)}&rtt=mt`;
+
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+            await Linking.openURL(url);
+        } else {
+            Alert.alert('Ошибка', 'Не удалось открыть Яндекс.Карты');
         }
     };
 
@@ -158,27 +213,41 @@ export default function SettingsScreen() {
         );
     };
 
-    const renderAddressItem = ({ item }) => (
-        <TouchableOpacity
-            style={styles.addressCard}
-            onLongPress={() => handleDeleteAddress(item)}
-        >
-            <View style={styles.addressHeader}>
-                <Text style={styles.addressName}>
-                    {item.code ? `${item.code} — ${item.name}` : item.name}
-                </Text>
-                {item.type === 'custom' && (
-                    <View style={styles.customAddressBadge}>
-                        <Text style={styles.customAddressBadgeText}>Своё</Text>
+    const renderAddressItem = ({ item }) => {
+        const travelTime = travelTimes[item.id] || 90;
+
+        return (
+            <View style={styles.addressCardContainer}>
+                <TouchableOpacity
+                    style={styles.addressCard}
+                    onLongPress={() => handleDeleteAddress(item)}
+                >
+                    <View style={styles.addressHeader}>
+                        <Text style={styles.addressName}>
+                            {item.code ? `${item.code} — ${item.name}` : item.name}
+                        </Text>
+                        {item.type === 'custom' && (
+                            <View style={styles.customAddressBadge}>
+                                <Text style={styles.customAddressBadgeText}>Своё</Text>
+                            </View>
+                        )}
                     </View>
-                )}
+                    <Text style={styles.addressValue}>{item.address}</Text>
+                    <Text style={styles.travelTimeText}>⏱ {travelTime} мин в пути</Text>
+                    {item.type === 'custom' && (
+                        <Text style={styles.addressHint}>Удержите для удаления</Text>
+                    )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={styles.travelTimeButton}
+                    onPress={() => openTravelTimeModal(item)}
+                >
+                    <Text style={styles.travelTimeButtonText}>🕐</Text>
+                </TouchableOpacity>
             </View>
-            <Text style={styles.addressValue}>{item.address}</Text>
-            {item.type === 'custom' && (
-                <Text style={styles.addressHint}>Удержите для удаления</Text>
-            )}
-        </TouchableOpacity>
-    );
+        );
+    };
 
     const transportModes = [
         { id: 'transit', icon: '🚌', label: 'Общественный' },
@@ -209,6 +278,7 @@ export default function SettingsScreen() {
                                 Корпуса, общежития и свои адреса
                             </Text>
                         </TouchableOpacity>
+
                     </View>
 
                     <View style={styles.section}>
@@ -355,6 +425,54 @@ export default function SettingsScreen() {
                         >
                             <Text style={styles.closeModalButtonText}>Закрыть</Text>
                         </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+            <Modal
+                visible={travelTimeModalVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={closeTravelTimeModal}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.travelTimeModalContent}>
+                        <Text style={styles.travelTimeModalTitle}>Время в пути</Text>
+                        <Text style={styles.travelTimeModalSubtitle}>
+                            {selectedAddressForTime?.code ? `${selectedAddressForTime.code} — ${selectedAddressForTime.name}` : selectedAddressForTime?.name}
+                        </Text>
+
+                        <TouchableOpacity
+                            style={styles.viewRouteButton}
+                            onPress={openRouteForAddress}
+                        >
+                            <Text style={styles.viewRouteButtonText}>🗺 Посмотреть маршрут в Яндекс.Картах</Text>
+                        </TouchableOpacity>
+
+                        <Text style={styles.travelTimeInputLabel}>Время в пути (минуты)</Text>
+                        <TextInput
+                            style={styles.travelTimeInput}
+                            value={travelTimeInput}
+                            onChangeText={setTravelTimeInput}
+                            placeholder="90"
+                            placeholderTextColor="#999"
+                            keyboardType="numeric"
+                        />
+
+                        <View style={styles.travelTimeModalButtons}>
+                            <TouchableOpacity
+                                style={[styles.travelTimeModalButton, styles.cancelButton]}
+                                onPress={closeTravelTimeModal}
+                            >
+                                <Text style={styles.cancelButtonText}>Отмена</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.travelTimeModalButton, styles.saveButton]}
+                                onPress={saveTravelTimeForAddress}
+                            >
+                                <Text style={styles.saveButtonText}>Сохранить</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
             </Modal>
@@ -584,5 +702,83 @@ const styles = StyleSheet.create({
         color: '#333',
         fontSize: 16,
         fontWeight: '600',
+    },
+    addressCardContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    travelTimeText: {
+        fontSize: 12,
+        color: '#007AFF',
+        marginTop: 4,
+        fontWeight: '500',
+    },
+    travelTimeButton: {
+        width: 44,
+        height: 44,
+        backgroundColor: '#007AFF',
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: 8,
+    },
+    travelTimeButtonText: {
+        fontSize: 20,
+    },
+    travelTimeModalContent: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        padding: 20,
+    },
+    travelTimeModalTitle: {
+        fontSize: 22,
+        fontWeight: '700',
+        color: '#333',
+        marginBottom: 5,
+    },
+    travelTimeModalSubtitle: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 20,
+    },
+    viewRouteButton: {
+        backgroundColor: '#007AFF',
+        padding: 14,
+        borderRadius: 10,
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    viewRouteButtonText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    travelTimeInputLabel: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#333',
+        marginBottom: 8,
+    },
+    travelTimeInput: {
+        backgroundColor: '#f8f8f8',
+        borderRadius: 10,
+        padding: 14,
+        fontSize: 15,
+        color: '#333',
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+        marginBottom: 20,
+    },
+    travelTimeModalButtons: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    travelTimeModalButton: {
+        flex: 1,
+        padding: 16,
+        borderRadius: 10,
+        alignItems: 'center',
     },
 });
