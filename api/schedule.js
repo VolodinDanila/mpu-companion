@@ -80,6 +80,19 @@ export const parseSchedule = (rawSchedule) => {
 
     const parsedSchedule = {};
 
+    const EXCLUDED_SUBJECTS = [
+        'проектная деятельность',
+        'общая физическая подготовка',
+        'физическая культура',
+        'физкультура',
+    ];
+
+    const shouldExcludeSubject = (subjectName) => {
+        if (!subjectName) return false;
+        const normalized = subjectName.toLowerCase().trim();
+        return EXCLUDED_SUBJECTS.some(excluded => normalized.includes(excluded));
+    };
+
     console.log('🔍 дни в расписании:', Object.keys(rawSchedule.grid));
 
     Object.keys(rawSchedule.grid).forEach(dayKey => {
@@ -101,6 +114,11 @@ export const parseSchedule = (rawSchedule) => {
 
             lessonsInSlot.forEach((lesson, slotIndex) => {
                 if (!lesson || typeof lesson !== 'object') {
+                    return;
+                }
+
+                if (shouldExcludeSubject(lesson.sbj)) {
+                    console.log(`🚫 пропускаем: ${lesson.sbj} (${dayKey}, пара ${lessonNumber})`);
                     return;
                 }
 
@@ -148,7 +166,7 @@ export const parseSchedule = (rawSchedule) => {
         allLessonsForDay.sort((a, b) => a.lessonNumber - b.lessonNumber);
         parsedSchedule[dayKey] = allLessonsForDay;
 
-        console.log(`✅ день ${dayKey}: ${allLessonsForDay.length} занятий`);
+        console.log(`✅ день ${dayKey}: ${allLessonsForDay.length} занятий (после фильтрации)`);
     });
 
     return parsedSchedule;
