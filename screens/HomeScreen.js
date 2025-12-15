@@ -7,16 +7,24 @@ import {
     TouchableOpacity,
     ActivityIndicator,
 } from 'react-native';
-import { loadSettings, loadScheduleCache, loadRouteData } from '../utils/storage';
+import { loadSettings, loadScheduleCache, loadReminders, loadCustomLessons, getTravelTime, getAllAddressesList } from '../utils/storage';
 import { fetchWeatherByCity, getMockWeatherData, getWeatherRecommendations } from '../api/weather';
 import { getNextClass } from '../api/schedule';
 import { calculateAlarm, getTimeUntilAlarm } from '../utils/alarmCalculator';
+import { scheduleAlarm, cancelAlarm, requestPermissions } from '../utils/alarmManager';
 
 export default function HomeScreen() {
     const [nextAlarm, setNextAlarm] = useState(null);
     const [weather, setWeather] = useState(null);
     const [recommendations, setRecommendations] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [addresses, setAddresses] = useState([]);
+    const [alarmData, setAlarmData] = useState({
+        time: null,
+        breakdown: null,
+        nextClass: null,
+    });
+    const [alarmActive, setAlarmActive] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -28,6 +36,10 @@ export default function HomeScreen() {
         }, 60000);
 
         return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        requestPermissions();
     }, []);
 
     const loadData = async () => {
@@ -43,44 +55,222 @@ export default function HomeScreen() {
         }
     };
 
-    const loadAlarmData = async (settings) => {
+    const loadAlarmData = async () => {
         try {
-            const schedule = await loadScheduleCache();
-            if (!schedule) {
-                console.log('нет расписания в кэше');
-                setNextAlarm(null);
+            const settings = await loadSettings();
+            const cachedSchedule = await loadScheduleCache();
+            const customLessons = await loadCustomLessons();
+            const reminders = await loadReminders();
+            const addressList = await getAllAddressesList();
+
+            const now = new Date();
+
+            setAddresses(addressList);
+
+            if (!cachedSchedule && (!customLessons || customLessons.length === 0) && (!reminders || reminders.length === 0)) {
+                setAlarmData({
+                    time: null,
+                    breakdown: null,
+                    nextClass: null,
+                });
+                setAlarmActive(false);
+                await cancelAlarm();
                 return;
             }
 
-            const nextClassData = getNextClass(schedule);
-            if (!nextClassData) {
-                console.log('нет следующего занятия');
-                setNextAlarm(null);
-                return;
-            }
+            const routine = settings?.routineMinutes || 30;
+            const buffer = settings?.bufferMinutes || 15;
 
-            const route = await loadRouteData();
-            const alarm = calculateAlarm(nextClassData, settings, route);
+            let allCandidates = [];
 
-            if (alarm) {
-                setNextAlarm(alarm);
+            if (cachedSchedule) {
+                const scheduleKeys = Object.keys(cachedSchedule);
 
-                const timeUntil = getTimeUntilAlarm(alarm.fullDate);
-                if (timeUntil && settings?.weatherNotifications) {
-                    setRecommendations(prev => {
-                        const newRecs = [...prev];
-                        if (timeUntil.hours < 12) {
-                            newRecs.unshift(`Будильник через ${timeUntil.formatted}`);
+                for (const dayKey of scheduleKeys) {
+                    const dayLessons = cachedSchedule[dayKey] || [];
+
+                    for (const lesson of dayLessons) {
+                        const [hours, minutes] = lesson.time.split('-')[0].split(':').map(Number);
+                        const targetDayOfWeek = parseInt(dayKey, 10);
+                        const currentDayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
+
+                        for (let weekOffset = 0; weekOffset < 3; weekOffset++) {
+                            const eventDate = new Date(now);
+
+                            let daysToAdd = targetDayOfWeek - currentDayOfWeek;
+                            if (daysToAdd < 0) daysToAdd += 7;
+                            daysToAdd += weekOffset * 7;
+
+                            eventDate.setDate(eventDate.getDate() + daysToAdd);
+                            eventDate.setHours(hours, minutes, 0, 0);
+
+                            if (eventDate <= now) continue;
+
+                            let travelTime = 90;
+                            if (lesson.room) {
+                                const roomStr = lesson.room.toLowerCase();
+                                let campusCode = null;
+                                if (roomStr.includes('пр')) campusCode = 'pr';
+                                else if (roomStr.includes('пк')) campusCode = 'pk';
+                                else if (roomStr.includes('бс') || roomStr.includes('б') || roomStr.startsWith('б')) campusCode = 'bs';
+                                else if (roomStr.includes('ав')) campusCode = 'av';
+                                else if (roomStr.includes('м')) campusCode = 'm';
+
+                                if (campusCode) {
+                                    const campus = addressList.find(a => a.id === campusCode);
+                                    if (campus) {
+                                        travelTime = await getTravelTime(campus.id);
+                                    }
+                                }
+                            }
+
+                            const alarmTime = new Date(eventDate);
+                            alarmTime.setMinutes(alarmTime.getMinutes() - routine - travelTime - buffer);
+
+                            if (alarmTime > now) {
+                                allCandidates.push({
+                                    event: { ...lesson, dayNumber: targetDayOfWeek },
+                                    eventDate,
+                                    alarmTime,
+                                    travelTime,
+                                });
+                                break;
+                            }
                         }
-                        return newRecs;
-                    });
+                    }
                 }
-            } else {
-                setNextAlarm(null);
             }
+
+            if (customLessons && customLessons.length > 0) {
+                const lessonTimes = {
+                    1: '09:00-10:30',
+                    2: '10:40-12:10',
+                    3: '12:20-13:50',
+                    4: '14:30-16:00',
+                    5: '16:10-17:40',
+                    6: '17:50-19:20',
+                    7: '19:30-21:00',
+                };
+
+                for (const custom of customLessons) {
+                    const timeStr = lessonTimes[custom.lessonNumber] || '';
+                    const [hours, minutes] = timeStr.split('-')[0].split(':').map(Number);
+                    const targetDayOfWeek = custom.dayNumber;
+                    const currentDayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
+
+                    for (let weekOffset = 0; weekOffset < 3; weekOffset++) {
+                        const eventDate = new Date(now);
+
+                        let daysToAdd = targetDayOfWeek - currentDayOfWeek;
+                        if (daysToAdd < 0) daysToAdd += 7;
+                        daysToAdd += weekOffset * 7;
+
+                        eventDate.setDate(eventDate.getDate() + daysToAdd);
+                        eventDate.setHours(hours, minutes, 0, 0);
+
+                        if (eventDate <= now) continue;
+
+                        let travelTime = 90;
+                        if (custom.addressId) {
+                            travelTime = await getTravelTime(custom.addressId);
+                        }
+
+                        const alarmTime = new Date(eventDate);
+                        alarmTime.setMinutes(alarmTime.getMinutes() - routine - travelTime - buffer);
+
+                        if (alarmTime > now) {
+                            allCandidates.push({
+                                event: {
+                                    ...custom,
+                                    time: timeStr,
+                                    isCustom: true,
+                                },
+                                eventDate,
+                                alarmTime,
+                                travelTime,
+                            });
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (reminders && reminders.length > 0) {
+                for (const reminder of reminders) {
+                    const [day, month, year] = reminder.date.split('.').map(Number);
+                    const [hours, minutes] = reminder.time.split(':').map(Number);
+                    const eventDate = new Date(year, month - 1, day, hours, minutes);
+
+                    if (eventDate <= now) continue;
+
+                    let travelTime = 90;
+                    if (reminder.addressId) {
+                        travelTime = await getTravelTime(reminder.addressId);
+                    }
+
+                    const alarmTime = new Date(eventDate);
+                    alarmTime.setMinutes(alarmTime.getMinutes() - routine - travelTime - buffer);
+
+                    if (alarmTime > now) {
+                        allCandidates.push({
+                            event: {
+                                id: `reminder-${reminder.id}`,
+                                time: reminder.time,
+                                subject: reminder.title,
+                                type: 'напоминание',
+                                room: reminder.description || '',
+                                isReminder: true,
+                            },
+                            eventDate,
+                            alarmTime,
+                            travelTime,
+                        });
+                    }
+                }
+            }
+
+            if (allCandidates.length === 0) {
+                setAlarmData({
+                    time: null,
+                    breakdown: null,
+                    nextClass: null,
+                });
+                setAlarmActive(false);
+                await cancelAlarm();
+                return;
+            }
+
+            allCandidates.sort((a, b) => a.alarmTime - b.alarmTime);
+            const nearest = allCandidates[0];
+
+            const alarmDataToSet = {
+                time: nearest.alarmTime,
+                breakdown: {
+                    routine,
+                    travel: nearest.travelTime,
+                    buffer,
+                },
+                nextClass: {
+                    subject: nearest.event.subject,
+                    time: nearest.event.time,
+                    room: nearest.event.room || '',
+                    day: nearest.event.dayNumber,
+                },
+            };
+
+            setAlarmData(alarmDataToSet);
+
+            const result = await scheduleAlarm(alarmDataToSet);
+            setAlarmActive(result !== null);
+
         } catch (error) {
-            console.error('ошибка расчёта будильника:', error);
-            setNextAlarm(null);
+            console.error('ошибка загрузки данных будильника:', error);
+            setAlarmData({
+                time: null,
+                breakdown: null,
+                nextClass: null,
+            });
+            setAlarmActive(false);
         }
     };
 
@@ -91,14 +281,11 @@ export default function HomeScreen() {
             if (settings?.homeAddress) {
                 try {
                     const city = settings.homeAddress.split(',')[0].trim();
-                    console.log(`🌤️ загружаю погоду для: ${city}`);
                     weatherData = await fetchWeatherByCity(city);
                 } catch (apiError) {
-                    console.log('⚠️ используются mock данные погоды');
                     weatherData = getMockWeatherData();
                 }
             } else {
-                console.log('ℹ️ адрес не указан, используются mock данные');
                 weatherData = getMockWeatherData();
             }
 
@@ -107,7 +294,7 @@ export default function HomeScreen() {
             setRecommendations(weatherRecs);
 
         } catch (error) {
-            console.error('❌ критическая ошибка загрузки погоды:', error);
+            console.error('ошибка загрузки погоды:', error);
             const mockWeather = getMockWeatherData();
             setWeather(mockWeather);
             setRecommendations(getWeatherRecommendations(mockWeather));
@@ -118,7 +305,7 @@ export default function HomeScreen() {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#007AFF" />
-                <Text style={styles.loadingText}>Загрузка данных...</Text>
+                <Text style={styles.loadingText}>загрузка данных...</Text>
             </View>
         );
     }
@@ -126,45 +313,60 @@ export default function HomeScreen() {
     return (
         <ScrollView style={styles.container}>
             <View style={styles.alarmCard}>
-                <Text style={styles.sectionTitle}>Следующий будильник</Text>
+                <View style={styles.alarmHeader}>
+                    <Text style={styles.sectionTitle}>следующий будильник</Text>
+                    {alarmActive && (
+                        <View style={styles.activeIndicator}>
+                            <View style={styles.activeDot} />
+                            <Text style={styles.activeText}>активен</Text>
+                        </View>
+                    )}
+                </View>
 
-                {nextAlarm ? (
+                {alarmData.time && alarmData.nextClass ? (
                     <View style={styles.alarmInfo}>
-                        <Text style={styles.alarmTime}>{nextAlarm.time}</Text>
-                        <Text style={styles.alarmDate}>{nextAlarm.date}</Text>
+                        <Text style={styles.alarmTime}>
+                            {alarmData.time.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                        <Text style={styles.alarmDate}>
+                            {alarmData.time.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                        </Text>
 
                         <View style={styles.divider} />
 
                         <Text style={styles.classInfo}>
-                            Занятие в {nextAlarm.classTime}
+                            занятие в {alarmData.nextClass.time.split('-')[0]}
                         </Text>
-                        <Text style={styles.className}>{nextAlarm.className}</Text>
+                        <Text style={styles.className}>{alarmData.nextClass.subject}</Text>
+                        {alarmData.nextClass.room && (
+                            <Text style={styles.classRoom}>{alarmData.nextClass.room}</Text>
+                        )}
 
-                        {nextAlarm.breakdown && (
+                        {alarmData.breakdown && (
                             <View style={styles.breakdownContainer}>
-                                <Text style={styles.breakdownTitle}>Расчёт времени:</Text>
+                                <Text style={styles.breakdownTitle}>расчёт времени:</Text>
                                 <Text style={styles.breakdownItem}>
-                                    Утренняя рутина: {nextAlarm.breakdown.morningRoutine} мин
+                                    утренняя рутина: {alarmData.breakdown.routine} мин
                                 </Text>
                                 <Text style={styles.breakdownItem}>
-                                    Время в пути: {nextAlarm.breakdown.travelTime} мин
+                                    время в пути: {alarmData.breakdown.travel} мин
                                 </Text>
                                 <Text style={styles.breakdownItem}>
-                                    Запас времени: {nextAlarm.breakdown.extraTime} мин
+                                    запас времени: {alarmData.breakdown.buffer} мин
                                 </Text>
                             </View>
                         )}
                     </View>
                 ) : (
                     <Text style={styles.noDataText}>
-                        Нет запланированных занятий.{'\n'}
-                        Добавьте расписание в настройках.
+                        нет запланированных занятий.{'\n'}
+                        добавьте расписание в настройках.
                     </Text>
                 )}
             </View>
 
             <View style={styles.weatherCard}>
-                <Text style={styles.sectionTitle}>Погода на утро</Text>
+                <Text style={styles.sectionTitle}>погода на утро</Text>
 
                 {weather ? (
                     <View style={styles.weatherInfo}>
@@ -172,23 +374,23 @@ export default function HomeScreen() {
                         <Text style={styles.condition}>{weather.condition}</Text>
                         <View style={styles.weatherDetails}>
                             <Text style={styles.weatherDetailItem}>
-                                Ощущается как {weather.feelsLike}°C
+                                ощущается как {weather.feelsLike}°C
                             </Text>
                             <Text style={styles.weatherDetailItem}>
-                                Влажность: {weather.humidity}%
+                                влажность: {weather.humidity}%
                             </Text>
                             <Text style={styles.weatherDetailItem}>
-                                Ветер: {weather.windSpeed} м/с
+                                ветер: {weather.windSpeed} м/с
                             </Text>
                         </View>
                     </View>
                 ) : (
-                    <Text style={styles.noDataText}>Нет данных о погоде</Text>
+                    <Text style={styles.noDataText}>нет данных о погоде</Text>
                 )}
             </View>
 
             <View style={styles.recommendationsCard}>
-                <Text style={styles.sectionTitle}>Рекомендации</Text>
+                <Text style={styles.sectionTitle}>рекомендации</Text>
 
                 {recommendations.length > 0 ? (
                     <View style={styles.recommendationsList}>
@@ -200,7 +402,7 @@ export default function HomeScreen() {
                         ))}
                     </View>
                 ) : (
-                    <Text style={styles.noDataText}>Нет рекомендаций</Text>
+                    <Text style={styles.noDataText}>нет рекомендаций</Text>
                 )}
             </View>
 
@@ -208,7 +410,7 @@ export default function HomeScreen() {
                 style={styles.refreshButton}
                 onPress={loadData}
             >
-                <Text style={styles.refreshButtonText}>Обновить данные</Text>
+                <Text style={styles.refreshButtonText}>обновить данные</Text>
             </TouchableOpacity>
         </ScrollView>
     );
@@ -242,6 +444,32 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 3,
     },
+    alarmHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 15,
+    },
+    activeIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#E8F5E9',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 12,
+    },
+    activeDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#4CAF50',
+        marginRight: 6,
+    },
+    activeText: {
+        fontSize: 12,
+        color: '#4CAF50',
+        fontWeight: '600',
+    },
     weatherCard: {
         backgroundColor: '#fff',
         margin: 15,
@@ -271,7 +499,6 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '600',
         color: '#333',
-        marginBottom: 15,
     },
     alarmInfo: {
         alignItems: 'center',
@@ -381,5 +608,10 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 16,
         fontWeight: '600',
+    },
+    classRoom: {
+        fontSize: 14,
+        color: '#999',
+        marginTop: 2,
     },
 });
