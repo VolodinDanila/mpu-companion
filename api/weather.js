@@ -1,5 +1,6 @@
-import { OPENWEATHER_API_KEY } from '@env';
-const API_KEY = OPENWEATHER_API_KEY
+import Constants from 'expo-constants';
+
+const API_KEY = Constants.expoConfig?.extra?.openWeatherApiKey
 const BASE_URL = 'https://api.openweathermap.org/data/2.5';
 
 export const fetchWeatherByCity = async (city) => {

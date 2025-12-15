@@ -1,0 +1,8 @@
+{
+  "expo": {
+    "extra": {
+      "yandexApiKey": "YOUR_YANDEX_API_KEY",
+      "openWeatherApiKey": "YOUR_OPENWEATHER_API_KEY"
+    }
+  }
+}

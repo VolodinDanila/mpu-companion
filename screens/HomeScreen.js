@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     ActivityIndicator,
 } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
 import { loadSettings, loadScheduleCache, loadReminders, loadCustomLessons, getTravelTime, getAllAddressesList } from '../utils/storage';
 import { fetchWeatherByCity, getMockWeatherData, getWeatherRecommendations } from '../api/weather';
 import { getNextClass } from '../api/schedule';
@@ -14,6 +15,9 @@ import { calculateAlarm, getTimeUntilAlarm } from '../utils/alarmCalculator';
 import { scheduleAlarm, cancelAlarm, requestPermissions } from '../utils/alarmManager';
 
 export default function HomeScreen() {
+    const { theme } = useTheme();
+    const styles = createStyles(theme);
+
     const [nextAlarm, setNextAlarm] = useState(null);
     const [weather, setWeather] = useState(null);
     const [recommendations, setRecommendations] = useState([]);
@@ -50,7 +54,7 @@ export default function HomeScreen() {
             await loadAlarmData(settings);
             setLoading(false);
         } catch (error) {
-            console.error('ошибка загрузки данных:', error);
+            console.error('Ошибка загрузки данных:', error);
             setLoading(false);
         }
     };
@@ -217,7 +221,7 @@ export default function HomeScreen() {
                                 id: `reminder-${reminder.id}`,
                                 time: reminder.time,
                                 subject: reminder.title,
-                                type: 'напоминание',
+                                type: 'Напоминание',
                                 room: reminder.description || '',
                                 isReminder: true,
                             },
@@ -264,7 +268,7 @@ export default function HomeScreen() {
             setAlarmActive(result !== null);
 
         } catch (error) {
-            console.error('ошибка загрузки данных будильника:', error);
+            console.error('Ошибка загрузки данных будильника:', error);
             setAlarmData({
                 time: null,
                 breakdown: null,
@@ -294,7 +298,7 @@ export default function HomeScreen() {
             setRecommendations(weatherRecs);
 
         } catch (error) {
-            console.error('ошибка загрузки погоды:', error);
+            console.error('Ошибка загрузки погоды:', error);
             const mockWeather = getMockWeatherData();
             setWeather(mockWeather);
             setRecommendations(getWeatherRecommendations(mockWeather));
@@ -304,7 +308,7 @@ export default function HomeScreen() {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#007AFF" />
+                <ActivityIndicator size="large" color={theme.primary} />
                 <Text style={styles.loadingText}>Загрузка данных...</Text>
             </View>
         );
@@ -335,7 +339,7 @@ export default function HomeScreen() {
                         <View style={styles.divider} />
 
                         <Text style={styles.classInfo}>
-                            занятие в {alarmData.nextClass.time.split('-')[0]}
+                            Занятие в {alarmData.nextClass.time.split('-')[0]}
                         </Text>
                         <Text style={styles.className}>{alarmData.nextClass.subject}</Text>
                         {alarmData.nextClass.room && (
@@ -416,29 +420,29 @@ export default function HomeScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: theme.background,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f5f5f5',
+        backgroundColor: theme.background,
     },
     loadingText: {
         marginTop: 10,
         fontSize: 16,
-        color: '#666',
+        color: theme.textSecondary,
     },
     alarmCard: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         margin: 15,
         marginBottom: 10,
         padding: 20,
         borderRadius: 12,
-        shadowColor: '#000',
+        shadowColor: theme.shadow,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -453,7 +457,7 @@ const styles = StyleSheet.create({
     activeIndicator: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#E8F5E9',
+        backgroundColor: theme.success + '20',
         paddingHorizontal: 10,
         paddingVertical: 5,
         borderRadius: 12,
@@ -462,34 +466,34 @@ const styles = StyleSheet.create({
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: '#4CAF50',
+        backgroundColor: theme.success,
         marginRight: 6,
     },
     activeText: {
         fontSize: 12,
-        color: '#4CAF50',
+        color: theme.success,
         fontWeight: '600',
     },
     weatherCard: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         margin: 15,
         marginBottom: 10,
         marginTop: 5,
         padding: 20,
         borderRadius: 12,
-        shadowColor: '#000',
+        shadowColor: theme.shadow,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
     },
     recommendationsCard: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         margin: 15,
         marginTop: 5,
         padding: 20,
         borderRadius: 12,
-        shadowColor: '#000',
+        shadowColor: theme.shadow,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -498,7 +502,7 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#333',
+        color: theme.text,
     },
     alarmInfo: {
         alignItems: 'center',
@@ -506,45 +510,45 @@ const styles = StyleSheet.create({
     alarmTime: {
         fontSize: 48,
         fontWeight: 'bold',
-        color: '#007AFF',
+        color: theme.primary,
     },
     alarmDate: {
         fontSize: 16,
-        color: '#666',
+        color: theme.textSecondary,
         marginTop: 5,
     },
     divider: {
         width: '100%',
         height: 1,
-        backgroundColor: '#e0e0e0',
+        backgroundColor: theme.border,
         marginVertical: 15,
     },
     classInfo: {
         fontSize: 14,
-        color: '#666',
+        color: theme.textSecondary,
     },
     className: {
         fontSize: 16,
         fontWeight: '500',
-        color: '#333',
+        color: theme.text,
         marginTop: 5,
     },
     breakdownContainer: {
         marginTop: 15,
         paddingTop: 15,
         borderTopWidth: 1,
-        borderTopColor: '#f0f0f0',
+        borderTopColor: theme.border,
         width: '100%',
     },
     breakdownTitle: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#666',
+        color: theme.textSecondary,
         marginBottom: 8,
     },
     breakdownItem: {
         fontSize: 12,
-        color: '#999',
+        color: theme.textTertiary,
         marginTop: 4,
     },
     weatherInfo: {
@@ -553,11 +557,11 @@ const styles = StyleSheet.create({
     temperature: {
         fontSize: 42,
         fontWeight: 'bold',
-        color: '#FF9500',
+        color: theme.warning,
     },
     condition: {
         fontSize: 18,
-        color: '#666',
+        color: theme.textSecondary,
         marginTop: 5,
     },
     weatherDetails: {
@@ -566,7 +570,7 @@ const styles = StyleSheet.create({
     },
     weatherDetailItem: {
         fontSize: 13,
-        color: '#666',
+        color: theme.textSecondary,
         marginTop: 4,
     },
     recommendationsList: {
@@ -579,24 +583,24 @@ const styles = StyleSheet.create({
     },
     bullet: {
         fontSize: 18,
-        color: '#007AFF',
+        color: theme.primary,
         marginRight: 10,
         marginTop: -2,
     },
     recommendationText: {
         fontSize: 15,
-        color: '#333',
+        color: theme.text,
         flex: 1,
         lineHeight: 22,
     },
     noDataText: {
         fontSize: 14,
-        color: '#999',
+        color: theme.textTertiary,
         textAlign: 'center',
         fontStyle: 'italic',
     },
     refreshButton: {
-        backgroundColor: '#007AFF',
+        backgroundColor: theme.primary,
         margin: 15,
         marginTop: 5,
         padding: 16,
@@ -611,7 +615,7 @@ const styles = StyleSheet.create({
     },
     classRoom: {
         fontSize: 14,
-        color: '#999',
+        color: theme.textTertiary,
         marginTop: 2,
     },
 });

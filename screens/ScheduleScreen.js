@@ -12,6 +12,7 @@ import {
     ScrollView,
     Linking,
 } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
 import { loadSettings, saveScheduleCache, loadScheduleCache, clearScheduleCache, loadCustomLessons, addCustomLesson, deleteCustomLesson, getAllAddressesList } from '../utils/storage';
 import {
     fetchScheduleFromUniversity,
@@ -20,6 +21,9 @@ import {
 } from '../api/schedule';
 
 export default function ScheduleScreen() {
+    const { theme } = useTheme();
+    const styles = createStyles(theme);
+
     const [selectedDay, setSelectedDay] = useState(1);
     const [schedule, setSchedule] = useState([]);
     const [fullSchedule, setFullSchedule] = useState(null);
@@ -279,7 +283,6 @@ export default function ScheduleScreen() {
     };
 
     const handleLessonClick = async (item) => {
-        // только кастомные занятия с адресом открывают маршрут
         if (!item.isCustom || !item.addressId) {
             return;
         }
@@ -412,7 +415,7 @@ export default function ScheduleScreen() {
 
             {loading ? (
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#007AFF" />
+                    <ActivityIndicator size="large" color={theme.primary} />
                     <Text style={styles.loadingText}>Загрузка расписания...</Text>
                 </View>
             ) : schedule.length > 0 ? (
@@ -469,7 +472,7 @@ export default function ScheduleScreen() {
                                 value={customSubject}
                                 onChangeText={setCustomSubject}
                                 placeholder="Например: Консультация по диплому"
-                                placeholderTextColor="#999"
+                                placeholderTextColor={theme.textTertiary}
                             />
 
                             <Text style={styles.inputLabel}>Тип занятия</Text>
@@ -478,7 +481,7 @@ export default function ScheduleScreen() {
                                 value={customType}
                                 onChangeText={setCustomType}
                                 placeholder="Лекция / Практика / Консультация"
-                                placeholderTextColor="#999"
+                                placeholderTextColor={theme.textTertiary}
                             />
 
                             <Text style={styles.inputLabel}>Номер пары * (1-7)</Text>
@@ -487,7 +490,7 @@ export default function ScheduleScreen() {
                                 value={customLessonNumber}
                                 onChangeText={setCustomLessonNumber}
                                 placeholder="1"
-                                placeholderTextColor="#999"
+                                placeholderTextColor={theme.textTertiary}
                                 keyboardType="numeric"
                             />
 
@@ -497,7 +500,7 @@ export default function ScheduleScreen() {
                                 value={customRoom}
                                 onChangeText={setCustomRoom}
                                 placeholder="Пр1234"
-                                placeholderTextColor="#999"
+                                placeholderTextColor={theme.textTertiary}
                             />
 
                             <Text style={styles.inputLabel}>Преподаватель</Text>
@@ -506,7 +509,7 @@ export default function ScheduleScreen() {
                                 value={customProfessor}
                                 onChangeText={setCustomProfessor}
                                 placeholder="Иванов И.И."
-                                placeholderTextColor="#999"
+                                placeholderTextColor={theme.textTertiary}
                             />
 
                             <Text style={styles.inputLabel}>Место (опционально)</Text>
@@ -585,17 +588,17 @@ export default function ScheduleScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: theme.background,
     },
     weekSelector: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         paddingTop: 50,
         paddingBottom: 15,
         borderBottomWidth: 1,
-        borderBottomColor: '#e0e0e0',
+        borderBottomColor: theme.border,
     },
     weekButtonsRow: {
         flexDirection: 'row',
@@ -606,32 +609,32 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 20,
-        backgroundColor: '#f0f0f0',
+        backgroundColor: theme.inputBackground,
         minWidth: 50,
         alignItems: 'center',
     },
     dayButtonActive: {
-        backgroundColor: '#007AFF',
+        backgroundColor: theme.primary,
     },
     dayButtonText: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#666',
+        color: theme.textSecondary,
     },
     dayButtonTextActive: {
         color: '#fff',
     },
     dayHeader: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         paddingHorizontal: 20,
         paddingVertical: 15,
         borderBottomWidth: 1,
-        borderBottomColor: '#e0e0e0',
+        borderBottomColor: theme.border,
     },
     dayHeaderText: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#333',
+        color: theme.text,
     },
     scheduleList: {
         padding: 15,
@@ -639,11 +642,11 @@ const styles = StyleSheet.create({
     },
     classCard: {
         flexDirection: 'row',
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         borderRadius: 12,
         padding: 15,
         marginBottom: 12,
-        shadowColor: '#000',
+        shadowColor: theme.shadow,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -654,13 +657,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         borderRightWidth: 2,
-        borderRightColor: '#007AFF',
+        borderRightColor: theme.primary,
         marginRight: 15,
     },
     timeText: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#007AFF',
+        color: theme.primary,
         textAlign: 'center',
     },
     classInfo: {
@@ -675,11 +678,11 @@ const styles = StyleSheet.create({
     subjectText: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#333',
+        color: theme.text,
         flex: 1,
     },
     customBadge: {
-        backgroundColor: '#FF9500',
+        backgroundColor: theme.warning,
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 8,
@@ -696,40 +699,40 @@ const styles = StyleSheet.create({
         marginBottom: 5,
     },
     typeBadge: {
-        backgroundColor: '#E8F4FD',
+        backgroundColor: theme.primary + '20',
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 12,
         marginRight: 10,
     },
     typeBadgeCustom: {
-        backgroundColor: '#FFF3E0',
+        backgroundColor: theme.warning + '20',
     },
     typeText: {
         fontSize: 12,
-        color: '#007AFF',
+        color: theme.primary,
         fontWeight: '500',
     },
     typeTextCustom: {
-        color: '#FF9500',
+        color: theme.warning,
     },
     roomText: {
         fontSize: 14,
-        color: '#666',
+        color: theme.textSecondary,
     },
     professorText: {
         fontSize: 13,
-        color: '#999',
+        color: theme.textTertiary,
         marginTop: 3,
     },
     lessonAddress: {
         fontSize: 13,
-        color: '#666',
+        color: theme.textSecondary,
         marginTop: 4,
     },
     customHint: {
         fontSize: 11,
-        color: '#FF9500',
+        color: theme.warning,
         fontStyle: 'italic',
         marginTop: 5,
     },
@@ -741,7 +744,7 @@ const styles = StyleSheet.create({
     loadingText: {
         marginTop: 10,
         fontSize: 14,
-        color: '#666',
+        color: theme.textSecondary,
     },
     emptyContainer: {
         flex: 1,
@@ -751,7 +754,7 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         fontSize: 16,
-        color: '#999',
+        color: theme.textTertiary,
         textAlign: 'center',
     },
     bottomButtons: {
@@ -763,11 +766,11 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: theme.background,
     },
     addCustomButton: {
         flex: 1,
-        backgroundColor: '#FF9500',
+        backgroundColor: theme.warning,
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',
@@ -778,16 +781,16 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     updateButton: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#007AFF',
+        borderColor: theme.primary,
         width: 50,
     },
     updateButtonText: {
-        color: '#007AFF',
+        color: theme.primary,
         fontSize: 16,
         fontWeight: '600',
     },
@@ -797,7 +800,7 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         padding: 20,
@@ -806,40 +809,40 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 22,
         fontWeight: '700',
-        color: '#333',
+        color: theme.text,
         marginBottom: 5,
     },
     modalSubtitle: {
         fontSize: 14,
-        color: '#666',
+        color: theme.textSecondary,
         marginBottom: 20,
     },
     inputLabel: {
         fontSize: 14,
         fontWeight: '500',
-        color: '#333',
+        color: theme.text,
         marginBottom: 8,
         marginTop: 12,
     },
     input: {
-        backgroundColor: '#f8f8f8',
+        backgroundColor: theme.inputBackground,
         borderRadius: 10,
         padding: 14,
         fontSize: 15,
-        color: '#333',
+        color: theme.text,
         borderWidth: 1,
-        borderColor: '#e0e0e0',
+        borderColor: theme.border,
     },
     addressPicker: {
-        backgroundColor: '#f8f8f8',
+        backgroundColor: theme.inputBackground,
         borderRadius: 10,
         padding: 14,
         borderWidth: 1,
-        borderColor: '#e0e0e0',
+        borderColor: theme.border,
     },
     addressPickerText: {
         fontSize: 15,
-        color: '#333',
+        color: theme.text,
     },
     clearAddressButton: {
         marginTop: 8,
@@ -847,7 +850,7 @@ const styles = StyleSheet.create({
     },
     clearAddressButtonText: {
         fontSize: 13,
-        color: '#FF3B30',
+        color: theme.danger,
     },
     modalButtons: {
         flexDirection: 'row',
@@ -861,15 +864,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     cancelButton: {
-        backgroundColor: '#f0f0f0',
+        backgroundColor: theme.inputBackground,
     },
     cancelButtonText: {
-        color: '#333',
+        color: theme.text,
         fontSize: 16,
         fontWeight: '600',
     },
     saveButton: {
-        backgroundColor: '#FF9500',
+        backgroundColor: theme.warning,
     },
     saveButtonText: {
         color: '#fff',
@@ -877,7 +880,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     pickerModalContent: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         padding: 20,
@@ -886,7 +889,7 @@ const styles = StyleSheet.create({
     pickerTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#333',
+        color: theme.text,
         marginBottom: 15,
     },
     addressList: {
@@ -894,29 +897,29 @@ const styles = StyleSheet.create({
     },
     addressOption: {
         padding: 14,
-        backgroundColor: '#f8f8f8',
+        backgroundColor: theme.inputBackground,
         borderRadius: 10,
         marginBottom: 8,
     },
     addressOptionName: {
         fontSize: 15,
         fontWeight: '600',
-        color: '#333',
+        color: theme.text,
         marginBottom: 4,
     },
     addressOptionValue: {
         fontSize: 13,
-        color: '#666',
+        color: theme.textSecondary,
     },
     closePickerButton: {
-        backgroundColor: '#f0f0f0',
+        backgroundColor: theme.inputBackground,
         padding: 16,
         borderRadius: 10,
         alignItems: 'center',
         marginTop: 15,
     },
     closePickerButtonText: {
-        color: '#333',
+        color: theme.text,
         fontSize: 16,
         fontWeight: '600',
     },

@@ -12,9 +12,13 @@ import {
     ActivityIndicator,
     Linking,
 } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
 import { loadReminders, addReminder, updateReminder, deleteReminder, loadSettings, getAllAddressesList } from '../utils/storage';
 
 export default function RemindersScreen() {
+    const { theme } = useTheme();
+    const styles = createStyles(theme);
+
     const [reminders, setReminders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalVisible, setModalVisible] = useState(false);
@@ -69,6 +73,28 @@ export default function RemindersScreen() {
         } catch (error) {
             console.error('Ошибка загрузки адресов:', error);
         }
+    };
+
+    const formatTime = (text) => {
+        const cleaned = text.replace(/[^\d]/g, '');
+        if (cleaned.length <= 2) {
+            return cleaned;
+        }
+        if (cleaned.length <= 4) {
+            return `${cleaned.slice(0, 2)}:${cleaned.slice(2)}`;
+        }
+        return `${cleaned.slice(0, 2)}:${cleaned.slice(2, 4)}`;
+    };
+
+    const formatDate = (text) => {
+        const cleaned = text.replace(/[^\d]/g, '');
+        if (cleaned.length <= 2) {
+            return cleaned;
+        }
+        if (cleaned.length <= 4) {
+            return `${cleaned.slice(0, 2)}.${cleaned.slice(2)}`;
+        }
+        return `${cleaned.slice(0, 2)}.${cleaned.slice(2, 4)}.${cleaned.slice(4, 8)}`;
     };
 
     const openModal = async (reminder = null) => {
@@ -321,7 +347,7 @@ export default function RemindersScreen() {
 
             {loading ? (
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#007AFF" />
+                    <ActivityIndicator size="large" color={theme.primary} />
                     <Text style={styles.loadingText}>Загрузка...</Text>
                 </View>
             ) : sortedReminders.length > 0 ? (
@@ -367,7 +393,7 @@ export default function RemindersScreen() {
                                 value={title}
                                 onChangeText={setTitle}
                                 placeholder="Например: Дедлайн по проекту"
-                                placeholderTextColor="#999"
+                                placeholderTextColor={theme.textTertiary}
                             />
 
                             <Text style={styles.inputLabel}>Описание</Text>
@@ -376,7 +402,7 @@ export default function RemindersScreen() {
                                 value={description}
                                 onChangeText={setDescription}
                                 placeholder="Дополнительная информация"
-                                placeholderTextColor="#999"
+                                placeholderTextColor={theme.textTertiary}
                                 multiline
                                 numberOfLines={3}
                             />
@@ -385,20 +411,22 @@ export default function RemindersScreen() {
                             <TextInput
                                 style={styles.input}
                                 value={date}
-                                onChangeText={setDate}
+                                onChangeText={(text) => setDate(formatDate(text))}
                                 placeholder="12.12.2025"
-                                placeholderTextColor="#999"
-                                keyboardType="default"
+                                placeholderTextColor={theme.textTertiary}
+                                keyboardType="numeric"
+                                maxLength={10}
                             />
 
                             <Text style={styles.inputLabel}>Время * (ЧЧ:ММ)</Text>
                             <TextInput
                                 style={styles.input}
                                 value={time}
-                                onChangeText={setTime}
+                                onChangeText={(text) => setTime(formatTime(text))}
                                 placeholder="14:30"
-                                placeholderTextColor="#999"
-                                keyboardType="default"
+                                placeholderTextColor={theme.textTertiary}
+                                keyboardType="numeric"
+                                maxLength={5}
                             />
 
                             <Text style={styles.inputLabel}>Место (опционально)</Text>
@@ -477,37 +505,37 @@ export default function RemindersScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: theme.background,
     },
     header: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         padding: 20,
         paddingTop: 50,
         borderBottomWidth: 1,
-        borderBottomColor: '#e0e0e0',
+        borderBottomColor: theme.border,
     },
     headerTitle: {
         fontSize: 28,
         fontWeight: '700',
-        color: '#333',
+        color: theme.text,
         marginBottom: 5,
     },
     headerSubtitle: {
         fontSize: 14,
-        color: '#666',
+        color: theme.textSecondary,
     },
     listContent: {
         padding: 15,
     },
     reminderCard: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         borderRadius: 12,
         padding: 15,
         marginBottom: 12,
-        shadowColor: '#000',
+        shadowColor: theme.shadow,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -525,27 +553,27 @@ const styles = StyleSheet.create({
     reminderTitle: {
         fontSize: 17,
         fontWeight: '600',
-        color: '#333',
+        color: theme.text,
         flex: 1,
     },
     reminderTitlePast: {
         textDecorationLine: 'line-through',
-        color: '#999',
+        color: theme.textTertiary,
     },
     pastBadge: {
-        backgroundColor: '#f0f0f0',
+        backgroundColor: theme.inputBackground,
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 8,
     },
     pastBadgeText: {
         fontSize: 11,
-        color: '#999',
+        color: theme.textTertiary,
         fontWeight: '500',
     },
     reminderDescription: {
         fontSize: 14,
-        color: '#666',
+        color: theme.textSecondary,
         marginBottom: 10,
     },
     reminderFooter: {
@@ -553,22 +581,22 @@ const styles = StyleSheet.create({
     },
     reminderDateTime: {
         fontSize: 14,
-        color: '#007AFF',
+        color: theme.primary,
         fontWeight: '500',
         marginBottom: 4,
     },
     reminderAddress: {
         fontSize: 13,
-        color: '#666',
+        color: theme.textSecondary,
         marginTop: 2,
     },
     reminderHint: {
         fontSize: 11,
-        color: '#999',
+        color: theme.textTertiary,
         fontStyle: 'italic',
     },
     addButton: {
-        backgroundColor: '#007AFF',
+        backgroundColor: theme.primary,
         margin: 15,
         padding: 16,
         borderRadius: 12,
@@ -587,7 +615,7 @@ const styles = StyleSheet.create({
     loadingText: {
         marginTop: 10,
         fontSize: 14,
-        color: '#666',
+        color: theme.textSecondary,
     },
     emptyContainer: {
         flex: 1,
@@ -602,12 +630,12 @@ const styles = StyleSheet.create({
     emptyTitle: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#333',
+        color: theme.text,
         marginBottom: 8,
     },
     emptySubtitle: {
         fontSize: 14,
-        color: '#999',
+        color: theme.textTertiary,
         textAlign: 'center',
     },
     modalOverlay: {
@@ -616,7 +644,7 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         padding: 20,
@@ -625,39 +653,39 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 22,
         fontWeight: '700',
-        color: '#333',
+        color: theme.text,
         marginBottom: 20,
     },
     inputLabel: {
         fontSize: 14,
         fontWeight: '500',
-        color: '#333',
+        color: theme.text,
         marginBottom: 8,
         marginTop: 12,
     },
     input: {
-        backgroundColor: '#f8f8f8',
+        backgroundColor: theme.inputBackground,
         borderRadius: 10,
         padding: 14,
         fontSize: 15,
-        color: '#333',
+        color: theme.text,
         borderWidth: 1,
-        borderColor: '#e0e0e0',
+        borderColor: theme.border,
     },
     textArea: {
         height: 80,
         textAlignVertical: 'top',
     },
     addressPicker: {
-        backgroundColor: '#f8f8f8',
+        backgroundColor: theme.inputBackground,
         borderRadius: 10,
         padding: 14,
         borderWidth: 1,
-        borderColor: '#e0e0e0',
+        borderColor: theme.border,
     },
     addressPickerText: {
         fontSize: 15,
-        color: '#333',
+        color: theme.text,
     },
     clearAddressButton: {
         marginTop: 8,
@@ -665,7 +693,7 @@ const styles = StyleSheet.create({
     },
     clearAddressButtonText: {
         fontSize: 13,
-        color: '#FF3B30',
+        color: theme.danger,
     },
     modalButtons: {
         flexDirection: 'row',
@@ -679,15 +707,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     cancelButton: {
-        backgroundColor: '#f0f0f0',
+        backgroundColor: theme.inputBackground,
     },
     cancelButtonText: {
-        color: '#333',
+        color: theme.text,
         fontSize: 16,
         fontWeight: '600',
     },
     saveButton: {
-        backgroundColor: '#007AFF',
+        backgroundColor: theme.primary,
     },
     saveButtonText: {
         color: '#fff',
@@ -695,7 +723,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     pickerModalContent: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         padding: 20,
@@ -704,7 +732,7 @@ const styles = StyleSheet.create({
     pickerTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#333',
+        color: theme.text,
         marginBottom: 15,
     },
     addressList: {
@@ -712,29 +740,29 @@ const styles = StyleSheet.create({
     },
     addressOption: {
         padding: 14,
-        backgroundColor: '#f8f8f8',
+        backgroundColor: theme.inputBackground,
         borderRadius: 10,
         marginBottom: 8,
     },
     addressOptionName: {
         fontSize: 15,
         fontWeight: '600',
-        color: '#333',
+        color: theme.text,
         marginBottom: 4,
     },
     addressOptionValue: {
         fontSize: 13,
-        color: '#666',
+        color: theme.textSecondary,
     },
     closePickerButton: {
-        backgroundColor: '#f0f0f0',
+        backgroundColor: theme.inputBackground,
         padding: 16,
         borderRadius: 10,
         alignItems: 'center',
         marginTop: 15,
     },
     closePickerButtonText: {
-        color: '#333',
+        color: theme.text,
         fontSize: 16,
         fontWeight: '600',
     },

@@ -12,9 +12,13 @@ import {
     FlatList,
     Linking,
 } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
 import { loadSettings, saveSettings, loadAddresses, saveCustomAddress, deleteCustomAddress, loadTravelTimes, saveTravelTime, getTravelTime, clearScheduleCache } from '../utils/storage';
 
 export default function SettingsScreen() {
+    const { theme, themeMode, setTheme } = useTheme();
+    const styles = createStyles(theme);
+
     const [loading, setLoading] = useState(false);
     const [homeAddress, setHomeAddress] = useState('');
     const [routineMinutes, setRoutineMinutes] = useState('30');
@@ -155,7 +159,7 @@ export default function SettingsScreen() {
 
             Alert.alert('Успешно', 'Настройки сохранены', [
                 {
-                    text: 'ок',
+                    text: 'ОК',
                     onPress: () => {
                         if (groupChanged) {
                             loadSettingsFromStorage();
@@ -272,6 +276,12 @@ export default function SettingsScreen() {
         { id: 'pedestrian', icon: '🚶', label: 'Пешком' },
     ];
 
+    const themeOptions = [
+        { id: 'light', label: 'Светлая', icon: '☀️' },
+        { id: 'dark', label: 'Тёмная', icon: '🌙' },
+        { id: 'system', label: 'Системная', icon: '⚙️' },
+    ];
+
     return (
         <ScrollView style={styles.container}>
             <View style={styles.header}>
@@ -280,10 +290,36 @@ export default function SettingsScreen() {
 
             {loading ? (
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#007AFF" />
+                    <ActivityIndicator size="large" color={theme.primary} />
                 </View>
             ) : (
                 <View style={styles.content}>
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Тема оформления</Text>
+                        <View style={styles.themeButtons}>
+                            {themeOptions.map(option => (
+                                <TouchableOpacity
+                                    key={option.id}
+                                    style={[
+                                        styles.themeButton,
+                                        themeMode === option.id && styles.themeButtonActive,
+                                    ]}
+                                    onPress={() => setTheme(option.id)}
+                                >
+                                    <Text style={styles.themeIcon}>{option.icon}</Text>
+                                    <Text
+                                        style={[
+                                            styles.themeLabel,
+                                            themeMode === option.id && styles.themeLabelActive,
+                                        ]}
+                                    >
+                                        {option.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
+
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Адреса</Text>
                         <TouchableOpacity
@@ -295,7 +331,6 @@ export default function SettingsScreen() {
                                 Корпуса, общежития и свои адреса
                             </Text>
                         </TouchableOpacity>
-
                     </View>
 
                     <View style={styles.section}>
@@ -306,8 +341,8 @@ export default function SettingsScreen() {
                             style={styles.input}
                             value={homeAddress}
                             onChangeText={setHomeAddress}
-                            placeholder="ул. Примерная, д. 123"
-                            placeholderTextColor="#999"
+                            placeholder="Ул. Примерная, д. 123"
+                            placeholderTextColor={theme.textTertiary}
                         />
 
                         <Text style={styles.inputLabel}>Номер группы *</Text>
@@ -316,7 +351,7 @@ export default function SettingsScreen() {
                             value={groupNumber}
                             onChangeText={setGroupNumber}
                             placeholder="231-324"
-                            placeholderTextColor="#999"
+                            placeholderTextColor={theme.textTertiary}
                         />
 
                         <Text style={styles.inputLabel}>Утренняя рутина (минуты)</Text>
@@ -325,7 +360,7 @@ export default function SettingsScreen() {
                             value={routineMinutes}
                             onChangeText={setRoutineMinutes}
                             placeholder="30"
-                            placeholderTextColor="#999"
+                            placeholderTextColor={theme.textTertiary}
                             keyboardType="numeric"
                         />
 
@@ -335,7 +370,7 @@ export default function SettingsScreen() {
                             value={bufferMinutes}
                             onChangeText={setBufferMinutes}
                             placeholder="15"
-                            placeholderTextColor="#999"
+                            placeholderTextColor={theme.textTertiary}
                             keyboardType="numeric"
                         />
                     </View>
@@ -419,14 +454,14 @@ export default function SettingsScreen() {
                                 value={newAddressName}
                                 onChangeText={setNewAddressName}
                                 placeholder="Название (например: Работа)"
-                                placeholderTextColor="#999"
+                                placeholderTextColor={theme.textTertiary}
                             />
                             <TextInput
                                 style={styles.modalInput}
                                 value={newAddressValue}
                                 onChangeText={setNewAddressValue}
                                 placeholder="Адрес"
-                                placeholderTextColor="#999"
+                                placeholderTextColor={theme.textTertiary}
                             />
                             <TouchableOpacity
                                 style={styles.addAddressButton}
@@ -445,6 +480,7 @@ export default function SettingsScreen() {
                     </View>
                 </View>
             </Modal>
+
             <Modal
                 visible={travelTimeModalVisible}
                 animationType="slide"
@@ -471,7 +507,7 @@ export default function SettingsScreen() {
                             value={travelTimeInput}
                             onChangeText={setTravelTimeInput}
                             placeholder="90"
-                            placeholderTextColor="#999"
+                            placeholderTextColor={theme.textTertiary}
                             keyboardType="numeric"
                         />
 
@@ -497,22 +533,22 @@ export default function SettingsScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: theme.background,
     },
     header: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         padding: 20,
         paddingTop: 50,
         borderBottomWidth: 1,
-        borderBottomColor: '#e0e0e0',
+        borderBottomColor: theme.border,
     },
     headerTitle: {
         fontSize: 28,
         fontWeight: '700',
-        color: '#333',
+        color: theme.text,
     },
     content: {
         padding: 20,
@@ -523,41 +559,71 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#333',
+        color: theme.text,
         marginBottom: 15,
     },
+    themeButtons: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    themeButton: {
+        flex: 1,
+        backgroundColor: theme.card,
+        padding: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: theme.border,
+    },
+    themeButtonActive: {
+        borderColor: theme.primary,
+        backgroundColor: theme.primary + '10',
+    },
+    themeIcon: {
+        fontSize: 32,
+        marginBottom: 8,
+    },
+    themeLabel: {
+        fontSize: 12,
+        color: theme.textSecondary,
+        fontWeight: '500',
+    },
+    themeLabelActive: {
+        color: theme.primary,
+        fontWeight: '600',
+    },
     addressesButton: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         padding: 16,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#007AFF',
+        borderColor: theme.primary,
     },
     addressesButtonText: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#007AFF',
+        color: theme.primary,
         marginBottom: 4,
     },
     addressesButtonSubtext: {
         fontSize: 13,
-        color: '#666',
+        color: theme.textSecondary,
     },
     inputLabel: {
         fontSize: 14,
         fontWeight: '500',
-        color: '#333',
+        color: theme.text,
         marginBottom: 8,
         marginTop: 12,
     },
     input: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.inputBackground,
         borderRadius: 10,
         padding: 14,
         fontSize: 15,
-        color: '#333',
+        color: theme.text,
         borderWidth: 1,
-        borderColor: '#e0e0e0',
+        borderColor: theme.border,
     },
     transportButtons: {
         flexDirection: 'row',
@@ -565,16 +631,16 @@ const styles = StyleSheet.create({
     },
     transportButton: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',
         borderWidth: 2,
-        borderColor: '#e0e0e0',
+        borderColor: theme.border,
     },
     transportButtonActive: {
-        borderColor: '#007AFF',
-        backgroundColor: '#E8F4FD',
+        borderColor: theme.primary,
+        backgroundColor: theme.primary + '10',
     },
     transportIcon: {
         fontSize: 32,
@@ -582,15 +648,15 @@ const styles = StyleSheet.create({
     },
     transportLabel: {
         fontSize: 12,
-        color: '#666',
+        color: theme.textSecondary,
         fontWeight: '500',
     },
     transportLabelActive: {
-        color: '#007AFF',
+        color: theme.primary,
         fontWeight: '600',
     },
     saveButton: {
-        backgroundColor: '#007AFF',
+        backgroundColor: theme.primary,
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',
@@ -614,7 +680,7 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         padding: 20,
@@ -623,7 +689,7 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 22,
         fontWeight: '700',
-        color: '#333',
+        color: theme.text,
         marginBottom: 20,
     },
     addressesList: {
@@ -632,15 +698,20 @@ const styles = StyleSheet.create({
     addressCategoryTitle: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#666',
+        color: theme.textSecondary,
         marginTop: 15,
         marginBottom: 10,
     },
+    addressCardContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
     addressCard: {
-        backgroundColor: '#f8f8f8',
+        flex: 1,
+        backgroundColor: theme.inputBackground,
         padding: 12,
         borderRadius: 10,
-        marginBottom: 8,
     },
     addressHeader: {
         flexDirection: 'row',
@@ -651,11 +722,11 @@ const styles = StyleSheet.create({
     addressName: {
         fontSize: 15,
         fontWeight: '600',
-        color: '#333',
+        color: theme.text,
         flex: 1,
     },
     customAddressBadge: {
-        backgroundColor: '#FF9500',
+        backgroundColor: theme.warning,
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 8,
@@ -667,38 +738,56 @@ const styles = StyleSheet.create({
     },
     addressValue: {
         fontSize: 13,
-        color: '#666',
+        color: theme.textSecondary,
     },
     addressHint: {
         fontSize: 11,
-        color: '#FF9500',
+        color: theme.warning,
         fontStyle: 'italic',
         marginTop: 4,
+    },
+    travelTimeText: {
+        fontSize: 12,
+        color: theme.primary,
+        marginTop: 4,
+        fontWeight: '500',
+    },
+    travelTimeButton: {
+        width: 44,
+        height: 44,
+        backgroundColor: theme.primary,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: 8,
+    },
+    travelTimeButtonText: {
+        fontSize: 20,
     },
     addAddressSection: {
         marginTop: 20,
         paddingTop: 20,
         borderTopWidth: 1,
-        borderTopColor: '#e0e0e0',
+        borderTopColor: theme.border,
     },
     addAddressTitle: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#333',
+        color: theme.text,
         marginBottom: 12,
     },
     modalInput: {
-        backgroundColor: '#f8f8f8',
+        backgroundColor: theme.inputBackground,
         borderRadius: 10,
         padding: 14,
         fontSize: 15,
-        color: '#333',
+        color: theme.text,
         borderWidth: 1,
-        borderColor: '#e0e0e0',
+        borderColor: theme.border,
         marginBottom: 10,
     },
     addAddressButton: {
-        backgroundColor: '#FF9500',
+        backgroundColor: theme.warning,
         padding: 14,
         borderRadius: 10,
         alignItems: 'center',
@@ -709,42 +798,19 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     closeModalButton: {
-        backgroundColor: '#f0f0f0',
+        backgroundColor: theme.inputBackground,
         padding: 16,
         borderRadius: 10,
         alignItems: 'center',
         marginTop: 15,
     },
     closeModalButtonText: {
-        color: '#333',
+        color: theme.text,
         fontSize: 16,
         fontWeight: '600',
     },
-    addressCardContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    travelTimeText: {
-        fontSize: 12,
-        color: '#007AFF',
-        marginTop: 4,
-        fontWeight: '500',
-    },
-    travelTimeButton: {
-        width: 44,
-        height: 44,
-        backgroundColor: '#007AFF',
-        borderRadius: 22,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginLeft: 8,
-    },
-    travelTimeButtonText: {
-        fontSize: 20,
-    },
     travelTimeModalContent: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.card,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         padding: 20,
@@ -752,16 +818,16 @@ const styles = StyleSheet.create({
     travelTimeModalTitle: {
         fontSize: 22,
         fontWeight: '700',
-        color: '#333',
+        color: theme.text,
         marginBottom: 5,
     },
     travelTimeModalSubtitle: {
         fontSize: 14,
-        color: '#666',
+        color: theme.textSecondary,
         marginBottom: 20,
     },
     viewRouteButton: {
-        backgroundColor: '#007AFF',
+        backgroundColor: theme.primary,
         padding: 14,
         borderRadius: 10,
         alignItems: 'center',
@@ -775,17 +841,17 @@ const styles = StyleSheet.create({
     travelTimeInputLabel: {
         fontSize: 14,
         fontWeight: '500',
-        color: '#333',
+        color: theme.text,
         marginBottom: 8,
     },
     travelTimeInput: {
-        backgroundColor: '#f8f8f8',
+        backgroundColor: theme.inputBackground,
         borderRadius: 10,
         padding: 14,
         fontSize: 15,
-        color: '#333',
+        color: theme.text,
         borderWidth: 1,
-        borderColor: '#e0e0e0',
+        borderColor: theme.border,
         marginBottom: 20,
     },
     travelTimeModalButtons: {
@@ -797,5 +863,13 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 10,
         alignItems: 'center',
+    },
+    cancelButton: {
+        backgroundColor: theme.inputBackground,
+    },
+    cancelButtonText: {
+        color: theme.text,
+        fontSize: 16,
+        fontWeight: '600',
     },
 });

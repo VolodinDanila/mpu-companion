@@ -1,5 +1,6 @@
-import { YANDEX_API_KEY } from '@env';
-const API_KEY = YANDEX_API_KEY
+import Constants from 'expo-constants';
+
+const API_KEY = Constants.expoConfig?.extra?.yandexApiKey
 const GEOCODER_URL = 'https://geocode-maps.yandex.ru/1.x/';
 const OSRM_URL = 'https://router.project-osrm.org';
 
