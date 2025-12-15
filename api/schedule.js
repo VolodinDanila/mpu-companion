@@ -1,9 +1,5 @@
-const USE_PROXY = true;
-const PROXY_HOST = '10.0.2.2';
-const PROXY_PORT = 3001;
-const BASE_URL = USE_PROXY
-    ? `http://${PROXY_HOST}:${PROXY_PORT}`
-    : 'https://rasp.dmami.ru/site/group'
+const USE_PROXY = false;
+const BASE_URL = 'https://rasp.dmami.ru/site/group';
 
 const LESSON_TIMES = {
     1: '09:00-10:30',
@@ -17,57 +13,50 @@ const LESSON_TIMES = {
 
 export const fetchScheduleFromUniversity = async (groupNumber) => {
     if (!groupNumber || !groupNumber.trim()) {
-        throw new Error('не указан номер группы');
+        throw new Error('Не указан номер группы');
     }
 
     const url = `${BASE_URL}?group=${groupNumber}&session=0`;
 
     try {
-        console.log(`📅 запрашиваю расписание для группы: ${groupNumber}`);
-        console.log(`🔗 url: ${url}`);
+        console.log(`📅 Запрашиваю расписание для группы: ${groupNumber}`);
+        console.log(`🔗 URL: ${url}`);
 
         const response = await fetch(url, {
             method: 'GET',
             headers: {
-                'User-Agent': 'Mozilla/5.0',
-                'Accept': 'application/json',
+                'User-Agent': 'MPUCompanion/1.0 (Android)',
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'ru-RU,ru;q=0.9',
             },
         });
 
         if (!response.ok) {
-            throw new Error(`ошибка сервера: ${response.status}`);
+            throw new Error(`Ошибка сервера: ${response.status}`);
         }
 
         const text = await response.text();
-        console.log('📥 получен ответ, длина:', text.length);
+        console.log('📥 Получен ответ, длина:', text.length);
 
         let data;
         try {
             data = JSON.parse(text);
         } catch (parseError) {
-            console.error('❌ не удалось распарсить json:', parseError);
-            throw new Error('некорректный формат данных от сервера');
+            console.error('❌ Не удалось распарсить JSON:', parseError);
+            console.log('Первые 200 символов ответа:', text.substring(0, 200));
+            throw new Error('Некорректный формат данных от сервера');
         }
 
         if (!data || !data.grid) {
-            console.warn('⚠️ в ответе нет данных grid');
-            throw new Error('сервер вернул пустое расписание');
+            console.warn('⚠️ В ответе нет данных grid');
+            throw new Error('Сервер вернул пустое расписание');
         }
 
-        console.log('✅ расписание успешно загружено с сервера');
+        console.log('✅ Расписание успешно загружено с сервера');
         return data;
 
     } catch (error) {
-        console.error('❌ ошибка загрузки расписания:', error);
-
-        if (error.message && error.message.includes('Failed to fetch')) {
-            throw new Error('не удалось подключиться к серверу университета. проверьте интернет-соединение.');
-        }
-
-        if (error.message && error.message.includes('NetworkError')) {
-            throw new Error('cors ошибка: для веб-версии требуется прокси-сервер. на android приложение будет работать корректно.');
-        }
-
+        console.error('❌ Ошибка загрузки расписания:', error);
         throw error;
     }
 };
