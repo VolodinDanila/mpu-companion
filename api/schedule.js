@@ -1,4 +1,5 @@
-const USE_PROXY = false;
+const USE_PROXY = true;
+const PROXY_URL = 'https://mpu-schedule.danilavolodinn.workers.dev/';
 const BASE_URL = 'https://rasp.dmami.ru/site/group';
 
 const LESSON_TIMES = {
@@ -16,7 +17,9 @@ export const fetchScheduleFromUniversity = async (groupNumber) => {
         throw new Error('Не указан номер группы');
     }
 
-    const url = `${BASE_URL}?group=${groupNumber}&session=0`;
+    const url = USE_PROXY
+        ? `${PROXY_URL}?group=${groupNumber}&session=0`
+        : `${BASE_URL}?group=${groupNumber}&session=0`;
 
     try {
         console.log(`📅 Запрашиваю расписание для группы: ${groupNumber}`);
@@ -25,9 +28,7 @@ export const fetchScheduleFromUniversity = async (groupNumber) => {
         const response = await fetch(url, {
             method: 'GET',
             headers: {
-                'User-Agent': 'MPUCompanion/1.0 (Android)',
-                'Accept': 'application/json, text/plain, */*',
-                'Accept-Language': 'ru-RU,ru;q=0.9',
+                'Accept': 'application/json',
             },
         });
 
@@ -43,7 +44,6 @@ export const fetchScheduleFromUniversity = async (groupNumber) => {
             data = JSON.parse(text);
         } catch (parseError) {
             console.error('❌ Не удалось распарсить JSON:', parseError);
-            console.log('Первые 200 символов ответа:', text.substring(0, 200));
             throw new Error('Некорректный формат данных от сервера');
         }
 
