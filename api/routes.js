@@ -1,4 +1,5 @@
-const YANDEX_API_KEY = '5e15c7e1-aac6-455d-a0b0-37d9e76231b9';
+import { YANDEX_API_KEY } from '@env';
+const API_KEY = YANDEX_API_KEY
 const GEOCODER_URL = 'https://geocode-maps.yandex.ru/1.x/';
 const OSRM_URL = 'https://router.project-osrm.org';
 

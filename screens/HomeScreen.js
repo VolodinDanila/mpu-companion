@@ -305,7 +305,7 @@ export default function HomeScreen() {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#007AFF" />
-                <Text style={styles.loadingText}>загрузка данных...</Text>
+                <Text style={styles.loadingText}>Загрузка данных...</Text>
             </View>
         );
     }
@@ -314,11 +314,11 @@ export default function HomeScreen() {
         <ScrollView style={styles.container}>
             <View style={styles.alarmCard}>
                 <View style={styles.alarmHeader}>
-                    <Text style={styles.sectionTitle}>следующий будильник</Text>
+                    <Text style={styles.sectionTitle}>Следующий будильник</Text>
                     {alarmActive && (
                         <View style={styles.activeIndicator}>
                             <View style={styles.activeDot} />
-                            <Text style={styles.activeText}>активен</Text>
+                            <Text style={styles.activeText}>Активен</Text>
                         </View>
                     )}
                 </View>
@@ -344,29 +344,29 @@ export default function HomeScreen() {
 
                         {alarmData.breakdown && (
                             <View style={styles.breakdownContainer}>
-                                <Text style={styles.breakdownTitle}>расчёт времени:</Text>
+                                <Text style={styles.breakdownTitle}>Расчёт времени:</Text>
                                 <Text style={styles.breakdownItem}>
-                                    утренняя рутина: {alarmData.breakdown.routine} мин
+                                    Утренняя рутина: {alarmData.breakdown.routine} мин
                                 </Text>
                                 <Text style={styles.breakdownItem}>
-                                    время в пути: {alarmData.breakdown.travel} мин
+                                    Время в пути: {alarmData.breakdown.travel} мин
                                 </Text>
                                 <Text style={styles.breakdownItem}>
-                                    запас времени: {alarmData.breakdown.buffer} мин
+                                    Запас времени: {alarmData.breakdown.buffer} мин
                                 </Text>
                             </View>
                         )}
                     </View>
                 ) : (
                     <Text style={styles.noDataText}>
-                        нет запланированных занятий.{'\n'}
-                        добавьте расписание в настройках.
+                        Нет запланированных занятий.{'\n'}
+                        Добавьте расписание в настройках.
                     </Text>
                 )}
             </View>
 
             <View style={styles.weatherCard}>
-                <Text style={styles.sectionTitle}>погода на утро</Text>
+                <Text style={styles.sectionTitle}>Погода на утро</Text>
 
                 {weather ? (
                     <View style={styles.weatherInfo}>
@@ -374,23 +374,23 @@ export default function HomeScreen() {
                         <Text style={styles.condition}>{weather.condition}</Text>
                         <View style={styles.weatherDetails}>
                             <Text style={styles.weatherDetailItem}>
-                                ощущается как {weather.feelsLike}°C
+                                Ощущается как {weather.feelsLike}°C
                             </Text>
                             <Text style={styles.weatherDetailItem}>
-                                влажность: {weather.humidity}%
+                                Влажность: {weather.humidity}%
                             </Text>
                             <Text style={styles.weatherDetailItem}>
-                                ветер: {weather.windSpeed} м/с
+                                Ветер: {weather.windSpeed} м/с
                             </Text>
                         </View>
                     </View>
                 ) : (
-                    <Text style={styles.noDataText}>нет данных о погоде</Text>
+                    <Text style={styles.noDataText}>Нет данных о погоде</Text>
                 )}
             </View>
 
             <View style={styles.recommendationsCard}>
-                <Text style={styles.sectionTitle}>рекомендации</Text>
+                <Text style={styles.sectionTitle}>Рекомендации</Text>
 
                 {recommendations.length > 0 ? (
                     <View style={styles.recommendationsList}>
@@ -402,7 +402,7 @@ export default function HomeScreen() {
                         ))}
                     </View>
                 ) : (
-                    <Text style={styles.noDataText}>нет рекомендаций</Text>
+                    <Text style={styles.noDataText}>Нет рекомендаций</Text>
                 )}
             </View>
 
@@ -410,7 +410,7 @@ export default function HomeScreen() {
                 style={styles.refreshButton}
                 onPress={loadData}
             >
-                <Text style={styles.refreshButtonText}>обновить данные</Text>
+                <Text style={styles.refreshButtonText}>Обновить данные</Text>
             </TouchableOpacity>
         </ScrollView>
     );

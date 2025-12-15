@@ -388,7 +388,7 @@ export default function RemindersScreen() {
                                 onChangeText={setDate}
                                 placeholder="12.12.2025"
                                 placeholderTextColor="#999"
-                                keyboardType="numeric"
+                                keyboardType="default"
                             />
 
                             <Text style={styles.inputLabel}>Время * (ЧЧ:ММ)</Text>
@@ -398,7 +398,7 @@ export default function RemindersScreen() {
                                 onChangeText={setTime}
                                 placeholder="14:30"
                                 placeholderTextColor="#999"
-                                keyboardType="numeric"
+                                keyboardType="default"
                             />
 
                             <Text style={styles.inputLabel}>Место (опционально)</Text>

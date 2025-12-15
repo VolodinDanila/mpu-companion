@@ -757,6 +757,7 @@ const styles = StyleSheet.create({
     bottomButtons: {
         flexDirection: 'row',
         padding: 15,
+        paddingBottom: 20,
         gap: 10,
         position: 'absolute',
         bottom: 0,

@@ -23,10 +23,31 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.mpucompanion.app"
+      "package": "com.mpucompanion.app",
+      "permissions": [
+        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM",
+        "RECEIVE_BOOT_COMPLETED",
+        "WAKE_LOCK",
+        "POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c58430da-d2d9-454c-a4a5-011a30a2c8f6"
+      }
     }
   }
 }

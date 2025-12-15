@@ -12,7 +12,7 @@ import {
     FlatList,
     Linking,
 } from 'react-native';
-import { loadSettings, saveSettings, loadAddresses, saveCustomAddress, deleteCustomAddress, loadTravelTimes, saveTravelTime, getTravelTime } from '../utils/storage';
+import { loadSettings, saveSettings, loadAddresses, saveCustomAddress, deleteCustomAddress, loadTravelTimes, saveTravelTime, getTravelTime, clearScheduleCache } from '../utils/storage';
 
 export default function SettingsScreen() {
     const [loading, setLoading] = useState(false);
@@ -136,6 +136,9 @@ export default function SettingsScreen() {
 
         setLoading(true);
         try {
+            const oldSettings = await loadSettings();
+            const groupChanged = oldSettings?.groupNumber !== groupNumber.trim();
+
             const settings = {
                 homeAddress: homeAddress.trim(),
                 routineMinutes: routine,
@@ -145,7 +148,21 @@ export default function SettingsScreen() {
             };
 
             await saveSettings(settings);
-            Alert.alert('Успешно', 'Настройки сохранены');
+
+            if (groupChanged) {
+                await clearScheduleCache();
+            }
+
+            Alert.alert('Успешно', 'Настройки сохранены', [
+                {
+                    text: 'ок',
+                    onPress: () => {
+                        if (groupChanged) {
+                            loadSettingsFromStorage();
+                        }
+                    }
+                }
+            ]);
         } catch (error) {
             console.error('Ошибка сохранения настроек:', error);
             Alert.alert('Ошибка', 'Не удалось сохранить настройки');
