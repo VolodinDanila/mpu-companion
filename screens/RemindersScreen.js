@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { loadReminders, addReminder, updateReminder, deleteReminder, loadSettings, getAllAddressesList } from '../utils/storage';
+import { lightHaptic, mediumHaptic, heavyHaptic, successHaptic, errorHaptic } from '../utils/haptics';
 
 export default function RemindersScreen() {
     const { theme } = useTheme();
@@ -98,6 +99,7 @@ export default function RemindersScreen() {
     };
 
     const openModal = async (reminder = null) => {
+        lightHaptic();
         await loadAddressesList();
 
         if (reminder) {
@@ -136,32 +138,38 @@ export default function RemindersScreen() {
 
     const handleSave = async () => {
         if (!title.trim()) {
+            errorHaptic();
             Alert.alert('Ошибка', 'Введите название напоминания');
             return;
         }
 
         if (!date.trim()) {
+            errorHaptic();
             Alert.alert('Ошибка', 'Введите дату в формате ДД.ММ.ГГГГ');
             return;
         }
 
         if (!time.trim()) {
+            errorHaptic();
             Alert.alert('Ошибка', 'Введите время в формате ЧЧ:ММ');
             return;
         }
 
         const dateRegex = /^\d{2}\.\d{2}\.\d{4}$/;
         if (!dateRegex.test(date)) {
+            errorHaptic();
             Alert.alert('Ошибка', 'Неверный формат даты. Используйте ДД.ММ.ГГГГ');
             return;
         }
 
         const timeRegex = /^\d{2}:\d{2}$/;
         if (!timeRegex.test(time)) {
+            errorHaptic();
             Alert.alert('Ошибка', 'Неверный формат времени. Используйте ЧЧ:ММ');
             return;
         }
 
+        mediumHaptic();
         try {
             const reminderData = {
                 title: title.trim(),
@@ -179,17 +187,20 @@ export default function RemindersScreen() {
 
             await loadRemindersData();
             closeModal();
+            successHaptic();
             Alert.alert(
                 'Успешно',
                 editingReminder ? 'Напоминание обновлено' : 'Напоминание создано'
             );
         } catch (error) {
+            errorHaptic();
             console.error('Ошибка сохранения напоминания:', error);
             Alert.alert('Ошибка', 'Не удалось сохранить напоминание');
         }
     };
 
     const handleDelete = (reminder) => {
+        mediumHaptic();
         Alert.alert(
             'Удалить напоминание?',
             `Вы уверены что хотите удалить "${reminder.title}"?`,
@@ -199,10 +210,13 @@ export default function RemindersScreen() {
                     text: 'Удалить',
                     style: 'destructive',
                     onPress: async () => {
+                        heavyHaptic();
                         try {
                             await deleteReminder(reminder.id);
                             await loadRemindersData();
+                            successHaptic();
                         } catch (error) {
+                            errorHaptic();
                             console.error('Ошибка удаления напоминания:', error);
                             Alert.alert('Ошибка', 'Не удалось удалить напоминание');
                         }
@@ -213,6 +227,7 @@ export default function RemindersScreen() {
     };
 
     const handleReminderClick = async (reminder) => {
+        lightHaptic();
         if (!reminder.addressId) {
             openModal(reminder);
             return;
@@ -369,7 +384,10 @@ export default function RemindersScreen() {
 
             <TouchableOpacity
                 style={styles.addButton}
-                onPress={() => openModal()}
+                onPress={() => {
+                    mediumHaptic();
+                    openModal();
+                }}
             >
                 <Text style={styles.addButtonText}>+ Создать напоминание</Text>
             </TouchableOpacity>

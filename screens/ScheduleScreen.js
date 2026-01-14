@@ -19,6 +19,7 @@ import {
     parseSchedule,
     getScheduleForDay,
 } from '../api/schedule';
+import { lightHaptic, mediumHaptic, heavyHaptic, selectionHaptic } from '../utils/haptics';
 
 export default function ScheduleScreen() {
     const { theme } = useTheme();
@@ -259,6 +260,7 @@ export default function ScheduleScreen() {
     };
 
     const handleDeleteCustomLesson = (lesson) => {
+        mediumHaptic();
         Alert.alert(
             'Удалить занятие?',
             `Вы уверены что хотите удалить "${lesson.subject}"?`,
@@ -283,6 +285,7 @@ export default function ScheduleScreen() {
     };
 
     const handleLessonClick = async (item) => {
+        lightHaptic();
         if (!item.isCustom || !item.addressId) {
             return;
         }
@@ -386,7 +389,10 @@ export default function ScheduleScreen() {
                 styles.dayButton,
                 selectedDay === day.id && styles.dayButtonActive,
             ]}
-            onPress={() => setSelectedDay(day.id)}
+            onPress={() => {
+                selectionHaptic();
+                setSelectedDay(day.id);
+            }}
         >
             <Text
                 style={[
@@ -436,14 +442,20 @@ export default function ScheduleScreen() {
             <View style={styles.bottomButtons}>
                 <TouchableOpacity
                     style={styles.addCustomButton}
-                    onPress={openCustomLessonModal}
+                    onPress={() => {
+                        mediumHaptic();
+                        openCustomLessonModal();
+                    }}
                 >
                     <Text style={styles.addCustomButtonText}>+ Добавить своё занятие</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                     style={styles.updateButton}
-                    onPress={refreshSchedule}
+                    onPress={() => {
+                        lightHaptic();
+                        refreshSchedule();
+                    }}
                     disabled={!groupNumber}
                 >
                     <Text style={styles.updateButtonText}>
@@ -535,14 +547,20 @@ export default function ScheduleScreen() {
                             <View style={styles.modalButtons}>
                                 <TouchableOpacity
                                     style={[styles.modalButton, styles.cancelButton]}
-                                    onPress={closeModal}
+                                    onPress={() => {
+                                        lightHaptic();
+                                        closeModal();
+                                    }}
                                 >
                                     <Text style={styles.cancelButtonText}>Отмена</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
                                     style={[styles.modalButton, styles.saveButton]}
-                                    onPress={handleSaveCustomLesson}
+                                    onPress={() => {
+                                        mediumHaptic();
+                                        handleSaveCustomLesson();
+                                    }}
                                 >
                                     <Text style={styles.saveButtonText}>Добавить</Text>
                                 </TouchableOpacity>

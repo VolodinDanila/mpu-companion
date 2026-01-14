@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { loadSettings, saveSettings, loadAddresses, saveCustomAddress, deleteCustomAddress, loadTravelTimes, saveTravelTime, getTravelTime, clearScheduleCache } from '../utils/storage';
+import { lightHaptic, mediumHaptic, selectionHaptic, successHaptic, errorHaptic } from '../utils/haptics';
 
 export default function SettingsScreen() {
     const { theme, themeMode, setTheme } = useTheme();
@@ -117,6 +118,7 @@ export default function SettingsScreen() {
 
     const handleSave = async () => {
         if (!homeAddress.trim()) {
+            errorHaptic();
             Alert.alert('Ошибка', 'Укажите домашний адрес');
             return;
         }
@@ -138,6 +140,7 @@ export default function SettingsScreen() {
             return;
         }
 
+        mediumHaptic();
         setLoading(true);
         try {
             const oldSettings = await loadSettings();
@@ -152,6 +155,7 @@ export default function SettingsScreen() {
             };
 
             await saveSettings(settings);
+            successHaptic();
 
             if (groupChanged) {
                 await clearScheduleCache();
@@ -208,10 +212,12 @@ export default function SettingsScreen() {
 
     const handleDeleteAddress = (address) => {
         if (address.type !== 'custom') {
+            errorHaptic();
             Alert.alert('Ошибка', 'Встроенные адреса нельзя удалить');
             return;
         }
 
+        mediumHaptic();
         Alert.alert(
             'Удалить адрес?',
             `Вы уверены что хотите удалить "${address.name}"?`,
@@ -304,7 +310,10 @@ export default function SettingsScreen() {
                                         styles.themeButton,
                                         themeMode === option.id && styles.themeButtonActive,
                                     ]}
-                                    onPress={() => setTheme(option.id)}
+                                    onPress={() => {
+                                        selectionHaptic();
+                                        setTheme(option.id);
+                                    }}
                                 >
                                     <Text style={styles.themeIcon}>{option.icon}</Text>
                                     <Text
@@ -324,7 +333,10 @@ export default function SettingsScreen() {
                         <Text style={styles.sectionTitle}>Адреса</Text>
                         <TouchableOpacity
                             style={styles.addressesButton}
-                            onPress={openAddressesModal}
+                            onPress={() => {
+                                lightHaptic();
+                                openAddressesModal();
+                            }}
                         >
                             <Text style={styles.addressesButtonText}>📍 Управление адресами</Text>
                             <Text style={styles.addressesButtonSubtext}>
@@ -385,7 +397,10 @@ export default function SettingsScreen() {
                                         styles.transportButton,
                                         transportMode === mode.id && styles.transportButtonActive,
                                     ]}
-                                    onPress={() => setTransportMode(mode.id)}
+                                    onPress={() => {
+                                        selectionHaptic();
+                                        setTransportMode(mode.id);
+                                    }}
                                 >
                                     <Text style={styles.transportIcon}>{mode.icon}</Text>
                                     <Text

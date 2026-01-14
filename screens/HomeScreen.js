@@ -13,6 +13,7 @@ import { fetchWeatherByCity, getMockWeatherData, getWeatherRecommendations } fro
 import { getNextClass } from '../api/schedule';
 import { calculateAlarm, getTimeUntilAlarm } from '../utils/alarmCalculator';
 import { scheduleAlarm, cancelAlarm, requestPermissions } from '../utils/alarmManager';
+import { lightHaptic, successHaptic } from '../utils/haptics';
 
 export default function HomeScreen() {
     const { theme } = useTheme();
@@ -47,6 +48,7 @@ export default function HomeScreen() {
     }, []);
 
     const loadData = async () => {
+        lightHaptic();
         setLoading(true);
         try {
             const settings = await loadSettings();
@@ -412,7 +414,10 @@ export default function HomeScreen() {
 
             <TouchableOpacity
                 style={styles.refreshButton}
-                onPress={loadData}
+                onPress={() => {
+                    lightHaptic();
+                    loadData();
+                }}
             >
                 <Text style={styles.refreshButtonText}>Обновить данные</Text>
             </TouchableOpacity>

@@ -7,6 +7,7 @@ import HomeScreen from './screens/HomeScreen';
 import ScheduleScreen from './screens/ScheduleScreen';
 import RemindersScreen from './screens/RemindersScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import { selectionHaptic } from './utils/haptics';
 
 const Tab = createBottomTabNavigator();
 
@@ -48,6 +49,11 @@ function AppNavigator() {
                         return <Ionicons name={iconName} size={size} color={color} />;
                     },
                 })}
+                screenListeners={{
+                    tabPress: () => {
+                        selectionHaptic();
+                    },
+                }}
             >
                 <Tab.Screen name="Главная" component={HomeScreen} />
                 <Tab.Screen name="Расписание" component={ScheduleScreen} />
