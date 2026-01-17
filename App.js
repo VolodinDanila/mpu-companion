@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,14 +8,25 @@ import ScheduleScreen from './screens/ScheduleScreen';
 import RemindersScreen from './screens/RemindersScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import { selectionHaptic } from './utils/haptics';
+import { StatusBar } from 'react-native'
 
 const Tab = createBottomTabNavigator();
 
 function AppNavigator() {
     const { theme, isDark } = useTheme();
 
+    useEffect(() => {
+        StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content');
+        StatusBar.setBackgroundColor(theme.background);
+    }, [isDark, theme]);
+
     return (
         <NavigationContainer>
+            <StatusBar
+                barStyle={isDark ? 'light-content' : 'dark-content'}
+                backgroundColor={theme.background}
+            />
+
             <Tab.Navigator
                 screenOptions={({ route }) => ({
                     headerShown: false,

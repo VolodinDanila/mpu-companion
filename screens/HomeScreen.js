@@ -61,10 +61,28 @@ export default function HomeScreen() {
         }
     };
 
+    const isOnlineLesson = (room) => {
+        if (!room) return false;
+
+        const roomLower = room.toLowerCase();
+        const onlineKeywords = [
+            'webinar',
+            'сдо',
+            'lms',
+            'онлайн',
+            'online',
+            'zoom',
+            'teams',
+            'meet',
+        ];
+
+        return onlineKeywords.some(keyword => roomLower.includes(keyword));
+    };
+
     const loadAlarmData = async () => {
         try {
             const settings = await loadSettings();
-            const cachedSchedule = await loadScheduleCache();
+            const cachedScheduleData = await loadScheduleCache();
             const customLessons = await loadCustomLessons();
             const reminders = await loadReminders();
             const addressList = await getAllAddressesList();
@@ -72,6 +90,15 @@ export default function HomeScreen() {
             const now = new Date();
 
             setAddresses(addressList);
+
+            let cachedSchedule = null;
+            if (cachedScheduleData) {
+                if (cachedScheduleData.schedule) {
+                    cachedSchedule = cachedScheduleData.schedule;
+                } else {
+                    cachedSchedule = cachedScheduleData;
+                }
+            }
 
             if (!cachedSchedule && (!customLessons || customLessons.length === 0) && (!reminders || reminders.length === 0)) {
                 setAlarmData({
@@ -96,52 +123,59 @@ export default function HomeScreen() {
                     const dayLessons = cachedSchedule[dayKey] || [];
 
                     for (const lesson of dayLessons) {
-                        const [hours, minutes] = lesson.time.split('-')[0].split(':').map(Number);
-                        const targetDayOfWeek = parseInt(dayKey, 10);
-                        const currentDayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
+                        let eventDate;
 
-                        for (let weekOffset = 0; weekOffset < 3; weekOffset++) {
-                            const eventDate = new Date(now);
+                        if (lesson.sessionDate) {
+                            const [hours, minutes] = lesson.time.split('-')[0].split(':').map(Number);
+                            eventDate = new Date(lesson.sessionDate);
+                            eventDate.setHours(hours, minutes, 0, 0);
+                        } else {
+                            const [hours, minutes] = lesson.time.split('-')[0].split(':').map(Number);
+                            const targetDayOfWeek = parseInt(dayKey, 10);
+                            const currentDayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
 
+                            eventDate = new Date(now);
                             let daysToAdd = targetDayOfWeek - currentDayOfWeek;
                             if (daysToAdd < 0) daysToAdd += 7;
-                            daysToAdd += weekOffset * 7;
 
                             eventDate.setDate(eventDate.getDate() + daysToAdd);
                             eventDate.setHours(hours, minutes, 0, 0);
+                        }
 
-                            if (eventDate <= now) continue;
+                        if (eventDate <= now) continue;
 
-                            let travelTime = 90;
-                            if (lesson.room) {
-                                const roomStr = lesson.room.toLowerCase();
-                                let campusCode = null;
-                                if (roomStr.includes('пр')) campusCode = 'pr';
-                                else if (roomStr.includes('пк')) campusCode = 'pk';
-                                else if (roomStr.includes('бс') || roomStr.includes('б') || roomStr.startsWith('б')) campusCode = 'bs';
-                                else if (roomStr.includes('ав')) campusCode = 'av';
-                                else if (roomStr.includes('м')) campusCode = 'm';
+                        let travelTime = 90;
 
-                                if (campusCode) {
-                                    const campus = addressList.find(a => a.id === campusCode);
-                                    if (campus) {
-                                        travelTime = await getTravelTime(campus.id);
-                                    }
+                        if (isOnlineLesson(lesson.room)) {
+                            console.log(`🌐 Онлайн занятие: ${lesson.subject} (${lesson.room}), время в пути = 0`);
+                            travelTime = 0;
+                        } else if (lesson.room) {
+                            const roomStr = lesson.room.toLowerCase();
+                            let campusCode = null;
+                            if (roomStr.includes('пр')) campusCode = 'pr';
+                            else if (roomStr.includes('пк')) campusCode = 'pk';
+                            else if (roomStr.includes('бс') || roomStr.includes('б') || roomStr.startsWith('б')) campusCode = 'bs';
+                            else if (roomStr.includes('ав')) campusCode = 'av';
+                            else if (roomStr.includes('м')) campusCode = 'm';
+
+                            if (campusCode) {
+                                const campus = addressList.find(a => a.id === campusCode);
+                                if (campus) {
+                                    travelTime = await getTravelTime(campus.id);
                                 }
                             }
+                        }
 
-                            const alarmTime = new Date(eventDate);
-                            alarmTime.setMinutes(alarmTime.getMinutes() - routine - travelTime - buffer);
+                        const alarmTime = new Date(eventDate);
+                        alarmTime.setMinutes(alarmTime.getMinutes() - routine - travelTime - buffer);
 
-                            if (alarmTime > now) {
-                                allCandidates.push({
-                                    event: { ...lesson, dayNumber: targetDayOfWeek },
-                                    eventDate,
-                                    alarmTime,
-                                    travelTime,
-                                });
-                                break;
-                            }
+                        if (alarmTime > now) {
+                            allCandidates.push({
+                                event: { ...lesson, dayNumber: parseInt(dayKey, 10) },
+                                eventDate,
+                                alarmTime,
+                                travelTime,
+                            });
                         }
                     }
                 }
@@ -177,7 +211,11 @@ export default function HomeScreen() {
                         if (eventDate <= now) continue;
 
                         let travelTime = 90;
-                        if (custom.addressId) {
+
+                        if (isOnlineLesson(custom.room)) {
+                            console.log(`🌐 Онлайн занятие: ${custom.subject} (${custom.room}), время в пути = 0`);
+                            travelTime = 0;
+                        } else if (custom.addressId) {
                             travelTime = await getTravelTime(custom.addressId);
                         }
 
@@ -356,6 +394,7 @@ export default function HomeScreen() {
                                 </Text>
                                 <Text style={styles.breakdownItem}>
                                     Время в пути: {alarmData.breakdown.travel} мин
+                                    {alarmData.breakdown.travel === 0 && ' 🌐 (онлайн)'}
                                 </Text>
                                 <Text style={styles.breakdownItem}>
                                     Запас времени: {alarmData.breakdown.buffer} мин

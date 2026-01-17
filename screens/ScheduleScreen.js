@@ -134,20 +134,20 @@ export default function ScheduleScreen() {
         try {
             console.log(`📅 Начинаю загрузку расписания для группы: ${group}`);
 
-            const cachedSchedule = await loadScheduleCache();
-            if (cachedSchedule) {
+            const cachedScheduleData = await loadScheduleCache();
+            if (cachedScheduleData) {
                 console.log('✅ Расписание загружено из кэша');
-                setFullSchedule(cachedSchedule);
+                setFullSchedule(cachedScheduleData);
                 setLoading(false);
                 return;
             }
 
-            console.log('🌐 Загружаю расписание с сервера rasp.dmami.ru...');
+            console.log('🌐 Загружаю расписание с сервера...');
             const rawSchedule = await fetchScheduleFromUniversity(group);
             console.log('📥 Получены данные:', rawSchedule);
 
             const parsed = parseSchedule(rawSchedule);
-            console.log('✅ Расписание распарсено:', Object.keys(parsed).length, 'дней');
+            console.log('✅ Расписание распарсено');
 
             setFullSchedule(parsed);
             await saveScheduleCache(parsed);
@@ -168,12 +168,18 @@ export default function ScheduleScreen() {
         }
     };
 
+    useEffect(() => {
+        if (fullSchedule || customLessons.length > 0) {
+            updateScheduleForDay();
+        }
+    }, [selectedDay, fullSchedule, customLessons]);
+
     const updateScheduleForDay = () => {
         let daySchedule = [];
 
         if (fullSchedule) {
-            const universitySchedule = getScheduleForDay(fullSchedule, selectedDay) || [];
-            daySchedule = [...universitySchedule];
+            const scheduleData = getScheduleForDay(fullSchedule, selectedDay);
+            daySchedule = Array.isArray(scheduleData) ? [...scheduleData] : [];
         }
 
         const customForDay = customLessons.filter(lesson => lesson.dayNumber === selectedDay);
